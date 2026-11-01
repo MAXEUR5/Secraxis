@@ -109,7 +109,7 @@ contains other characters, change it before you upgrade, with 0.1.0's
 
 ## Known limitations
 
-- Not audited by an independent reviewer.
+- Not audited by an authority reviewer.
 - Secraxis needs a working RDSEED: on a processor without one, in a virtual
   machine that hides it, or after it fails its checks, it refuses to open,
   create or save vaults (`MANUAL.md`, Troubleshooting).
