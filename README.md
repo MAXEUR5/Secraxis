@@ -105,7 +105,7 @@ entry, `w` saves, `q` locks, and `?` lists the keys.
 Secraxis 0.9.1 is tested on Windows 11 and Linux: unit tests, sanitizers,
 fuzzing, static analysis, and scripted sessions in real terminals
 ([docs/TESTING_AND_FUZZING.md](docs/TESTING_AND_FUZZING.md)). It has **not**
-been audited by an independent reviewer yet. The tests, fuzz targets and
+been audited by an authority reviewer yet. The tests, fuzz targets and
 test tools belong to the development tree and are not part of this public
 source.
 

@@ -567,7 +567,7 @@ keeps no logs or caches.
   `--no-history` if that matters.
 
 Secraxis 0.9.1 has been tested extensively, but it has **not been audited by
-an independent reviewer** ([docs/SECURITY.md](docs/SECURITY.md)).
+an authority reviewer** ([docs/SECURITY.md](docs/SECURITY.md)).
 
 ### How the vault is protected (technical)
 
