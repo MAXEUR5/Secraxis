@@ -1,0 +1,3 @@
+// The program icon: docs/assets/secraxis-app-icon.svg (the logo on an Ink
+// tile, readable on light and dark backgrounds) rendered at 16 to 256 pixels.
+1 ICON "secraxis.ico"

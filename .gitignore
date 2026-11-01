@@ -1,0 +1,30 @@
+# Build trees
+build/
+build_*/
+out/
+cmake-build-*/
+
+# Dependency source archives (pinned by SHA-256 in third_party/PIN.md)
+third_party/downloads/
+
+# Vaults made while trying Secraxis out: never commit a vault
+*.seis
+
+# Key material
+id_ed25519
+id_ed25519.pub
+id_rsa
+id_rsa.pub
+*.pem
+*.ppk
+
+# Editor and OS files
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Scratch
+*.tmp
+*.log

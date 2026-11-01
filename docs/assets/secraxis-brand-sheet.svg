@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1080" viewBox="0 0 1440 1080" role="img" aria-labelledby="title desc">
+<title id="title">Secraxis — Flat Vector Identity Sheet</title>
+<desc id="desc">Primary symbol, faithfully redrawn angular geometric wordmark, dark-background usage, small-size test and flat color palette.</desc>
+<rect width="1440" height="1080" fill="#FAFAF8"/>
+<defs>
+<g id="sigil"><path d="M57 20H107V58H64V292H107V330H57L16 290V60Z" fill="#0F1720"/>
+<path d="M293 20H343L384 60V290L343 330H293V292H336V58H293Z" fill="#0F1720"/>
+<path d="M107 106L222 34L280 66L126 161L214 207L168 234L107 202Z" fill="#0E7C6B"/>
+<path d="M118 284L293 181V246L177 316Z" fill="#0E7C6B"/>
+<path d="M155 156L200 129L280 172L235 199Z" fill="#D4A017"/></g>
+<g id="sigil-light"><path d="M57 20H107V58H64V292H107V330H57L16 290V60Z" fill="#FAFAF8"/>
+<path d="M293 20H343L384 60V290L343 330H293V292H336V58H293Z" fill="#FAFAF8"/>
+<path d="M107 106L222 34L280 66L126 161L214 207L168 234L107 202Z" fill="#0E7C6B"/>
+<path d="M118 284L293 181V246L177 316Z" fill="#0E7C6B"/>
+<path d="M155 156L200 129L280 172L235 199Z" fill="#D4A017"/></g>
+<g id="wordmark">
+<g aria-label="Secraxis" transform="translate(-809 -216)">
+<path d="M828 216H895L891 233H834L828 239V249 L834 255L880 270L896 292V308 L878 327H809L813 310H871 L878 304V292L871 286L824 270 L810 252V235L828 216Z" fill="#0F1720" fill-rule="evenodd"/>
+<path d="M927 247H969L985 264V277L969 294 H927V305L933 311H982V327H927 L910 309V265L927 247Z M931 263L927 268V279H963L968 274 V268L964 263Z" fill="#0F1720" fill-rule="evenodd"/>
+<path d="M1016 247H1067L1063 263H1021L1015 269 V305L1021 311H1067V327H1016 L998 309V265L1016 247Z" fill="#0F1720" fill-rule="evenodd"/>
+<path d="M1095 247H1123V263H1102L1094 270 V327H1077V264L1095 247Z" fill="#0F1720" fill-rule="evenodd"/>
+<path d="M1131 247H1182L1198 263V327H1145 L1127 309V295L1144 279H1181 V269L1175 263H1131Z M1151 295L1145 301V305 L1151 311H1181V295Z" fill="#0F1720" fill-rule="evenodd"/>
+<path d="M1207 247H1227L1246 273L1265 247H1285 L1257 286L1285 327H1265L1246 300 L1227 327H1206L1235 286Z" fill="#0F1720" fill-rule="evenodd"/>
+<path d="M1296 247H1315V327H1296Z" fill="#0F1720" fill-rule="evenodd"/>
+<path d="M1345 247H1395L1391 263H1350 L1345 268V274L1350 278 L1379 279L1397 297V308 L1380 327H1327L1328 311H1373 L1378 305V300L1373 295 L1345 293L1328 278V264 L1345 247Z" fill="#0F1720" fill-rule="evenodd"/>
+<path d="M1305 210L1320 224L1305 239L1291 224Z" fill="#D4A017"/>
+</g>
+</g>
+</defs>
+<g fill="none" stroke="#DDE3E4" stroke-width="1"><path d="M526 28V458 M526 489V1052 M38 470H1402 M545 846H1402"/></g>
+<text x="45" y="56" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="600" letter-spacing="3.8" fill="#627078">01 / PRIMARY ICON MARK</text>
+<text x="555" y="56" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="600" letter-spacing="3.8" fill="#627078">02 / HORIZONTAL LOCKUP</text>
+<text x="45" y="514" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="600" letter-spacing="3.8" fill="#627078">03 / DARK BACKGROUND</text>
+<text x="554" y="514" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="600" letter-spacing="3.8" fill="#627078">04 / SMALL-SIZE LEGIBILITY</text>
+<text x="554" y="887" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="600" letter-spacing="3.8" fill="#627078">05 / COLOR SYSTEM</text>
+<use href="#sigil" transform="translate(72 102) scale(1.0)"/>
+<use href="#sigil" transform="translate(560 171) scale(0.53)"/>
+<use href="#wordmark" transform="translate(809 216)"/>
+<rect x="42" y="546" width="439" height="293" fill="#0F1720"/>
+<use href="#sigil-light" transform="translate(108 551) scale(0.77)"/>
+<text x="45" y="907" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="600" letter-spacing="2.3" fill="#627078">SECURITY / TERMINAL / CRYPTOGRAPHY</text>
+<text x="45" y="942" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="450" letter-spacing="0" fill="#0F1720">A mark built from boundaries,</text>
+<text x="45" y="969" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="450" letter-spacing="0" fill="#0F1720">precision and controlled access.</text>
+<use href="#sigil" transform="translate(630 632) scale(0.12)"/>
+<text x="648" y="777" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="500" letter-spacing="0" fill="#627078">16 px</text>
+<use href="#sigil" transform="translate(792 621) scale(0.17)"/>
+<text x="810" y="777" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="500" letter-spacing="0" fill="#627078">24 px</text>
+<use href="#sigil" transform="translate(956 608) scale(0.24)"/>
+<text x="974" y="777" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="500" letter-spacing="0" fill="#627078">32 px</text>
+<use href="#sigil" transform="translate(1154 576) scale(0.37)"/>
+<text x="1172" y="777" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="500" letter-spacing="0" fill="#627078">48 px</text>
+<text x="556" y="816" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="400" letter-spacing="0" fill="#627078">Optical previews enlarged for inspection · single unmodified vector geometry</text>
+<rect x="554" y="916" width="152" height="75" fill="#0F1720"/>
+<text x="554" y="1020" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="550" letter-spacing="0" fill="#0F1720">Ink</text>
+<text x="554" y="1044" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="450" letter-spacing="0.8" fill="#627078">#0F1720</text>
+<rect x="727" y="916" width="152" height="75" fill="#0E7C6B"/>
+<text x="727" y="1020" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="550" letter-spacing="0" fill="#0F1720">Teal</text>
+<text x="727" y="1044" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="450" letter-spacing="0.8" fill="#627078">#0E7C6B</text>
+<rect x="900" y="916" width="152" height="75" fill="#D4A017"/>
+<text x="900" y="1020" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="550" letter-spacing="0" fill="#0F1720">Gold</text>
+<text x="900" y="1044" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="450" letter-spacing="0.8" fill="#627078">#D4A017</text>
+<rect x="1073" y="916" width="152" height="75" fill="#E5E7EB"/>
+<text x="1073" y="1020" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="550" letter-spacing="0" fill="#0F1720">Stone</text>
+<text x="1073" y="1044" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="450" letter-spacing="0.8" fill="#627078">#E5E7EB</text>
+<rect x="1246" y="916" width="152" height="75" fill="#FAFAF8" stroke="#C4CDCC" stroke-width="1"/>
+<text x="1246" y="1020" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="550" letter-spacing="0" fill="#0F1720">Off White</text>
+<text x="1246" y="1044" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="450" letter-spacing="0.8" fill="#627078">#FAFAF8</text>
+</svg>

@@ -1,0 +1,5 @@
+# Every file is stored byte for byte: no line-ending conversion, whatever
+# core.autocrlf says. Scripts keep LF on every system, vendored files keep
+# their own line endings, and a checkout matches the release archive's
+# checksums.
+* -text
