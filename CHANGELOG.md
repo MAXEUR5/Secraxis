@@ -2,6 +2,41 @@
 
 All notable changes to Secraxis Vault Manager. Dates are absolute.
 
+## [0.9.2] — 2026-11-01
+
+**Added**
+- The master password can be shown while you type it: `Ctrl+R`, or a click
+  on **show** at the end of the field, when unlocking and in both steps of
+  creating a vault. It is hidden whenever a prompt opens, and hides again by
+  itself after 10 seconds without typing, on `Enter` or `Esc`, and at the
+  confirm step, so it is never shown while the key is derived. A paste
+  cannot turn it on. The shown text reaches the terminal only through the
+  buffers that are wiped after use, like a shown entry password.
+
+**Fixed**
+- Uppercase letters did nothing: with Caps Lock on or Shift held, the
+  vault's keys (`A` to add, `S` to show, `Q` to lock, `J`/`K` to move, …),
+  Settings and the start page ignored them; only the three confirmation
+  dialogs took both cases. Every command letter now acts in either case,
+  while text and password fields keep the case you type and a pasted letter
+  still commands nothing.
+
+**Build**
+- A source tree without the development tree (`tests/`, the fuzz targets),
+  as published, now configures with tests off by default and explains why
+  if they are asked for.
+
+**Tests added**
+- The master-password show on every prompt (start hidden, the idle timeout,
+  `Enter`, `Esc`, the confirm step, a paste, wrong passwords), drawn only
+  while shown and clickable; uppercase commands on the vault screen, in the
+  dialogs, Settings and on the start page, with the case kept in fields.
+  Each was taken back out once to check (7 of 7 caught).
+- `win_memory` and `linux_memory` show the master password while creating
+  (and on Windows also while unlocking again), check that it is on screen,
+  and then that it is gone from the program's memory once the key is
+  derived.
+
 ## [0.9.1] — 2026-11-01
 
 Everything since 0.1.0, for Windows 11 and Linux. `RELEASE_NOTES.md` has

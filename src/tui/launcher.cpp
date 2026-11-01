@@ -43,7 +43,13 @@ bool ends_with_seis(const std::string& n) {
 }
 
 bool is_ctrl(const KeyEvent& k, char32_t c) {
-    return k.code == KeyEvent::Code::Char && (k.mods & KEYMOD_CTRL) && k.cp == c;
+    return k.code == KeyEvent::Code::Char && (k.mods & KEYMOD_CTRL) && command_letter(k.cp) == c;
+}
+
+// The command letter of a plain (typed, not pasted, no Ctrl) key, else 0.
+char32_t plain_letter(const KeyEvent& k) {
+    if (k.code != KeyEvent::Code::Char || (k.mods & (KEYMOD_CTRL | KEYMOD_PASTE))) return 0;
+    return command_letter(k.cp);
 }
 
 // Text editing shared by the filter and the form fields.
@@ -52,9 +58,10 @@ bool edit_line(LineEdit& e, const KeyEvent& k) {
     switch (k.code) {
         case C::Char:
             if (k.mods & KEYMOD_CTRL) {
-                if (k.cp == U'u') e.clear();
-                else if (k.cp == U'a') e.home();
-                else if (k.cp == U'e') e.end();
+                const char32_t c = command_letter(k.cp);
+                if (c == U'u') e.clear();
+                else if (c == U'a') e.home();
+                else if (c == U'e') e.end();
                 else return false;
                 return true;
             }
@@ -181,8 +188,8 @@ void Launcher::move(const KeyEvent& k, size_t count, size_t* sel, size_t* top) {
         *top = 0;
         return;
     }
-    const bool up = k.code == C::Up || (k.code == C::Char && !(k.mods & KEYMOD_CTRL) && k.cp == U'k');
-    const bool down = k.code == C::Down || (k.code == C::Char && !(k.mods & KEYMOD_CTRL) && k.cp == U'j');
+    const bool up = k.code == C::Up || plain_letter(k) == U'k';
+    const bool down = k.code == C::Down || plain_letter(k) == U'j';
     if (k.code == C::Pick) {
         if (k.arg >= 0 && static_cast<size_t>(k.arg) < count) *sel = static_cast<size_t>(k.arg);
     } else if (up) {
@@ -227,8 +234,7 @@ void Launcher::key_home(const KeyEvent& k) {
     }
     const bool nav = k.code == C::Up || k.code == C::Down || k.code == C::PageUp ||
                      k.code == C::PageDown || k.code == C::Home || k.code == C::End ||
-                     k.code == C::Pick ||
-                     (k.code == C::Char && !(k.mods & KEYMOD_CTRL) && (k.cp == U'j' || k.cp == U'k'));
+                     k.code == C::Pick || plain_letter(k) == U'j' || plain_letter(k) == U'k';
     if (nav) {
         move(k, recent_.size(), &recent_sel_, &recent_top_);
         return;
@@ -256,8 +262,7 @@ void Launcher::key_home(const KeyEvent& k) {
         }
         return;
     }
-    if (k.code != C::Char || (k.mods & KEYMOD_CTRL)) return;
-    switch (k.cp) {
+    switch (plain_letter(k)) {
         case U'o': {
             // Start where the selected vault lives, else the default folder.
             std::string d = cfg_.start_dir;

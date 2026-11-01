@@ -314,7 +314,7 @@ KeyEvent wheel_key(const KeyEvent& raw) {
 }
 
 bool is_ctrl_l(const KeyEvent& k) {
-    return k.code == KeyEvent::Code::Char && (k.mods & KEYMOD_CTRL) && k.cp == U'l';
+    return k.code == KeyEvent::Code::Char && (k.mods & KEYMOD_CTRL) && command_letter(k.cp) == U'l';
 }
 
 // One vault, from the lock screen until the user leaves it (Esc on the lock

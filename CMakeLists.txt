@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(secraxis-vault-manager VERSION 0.9.1 LANGUAGES C CXX)
+project(secraxis-vault-manager VERSION 0.9.2 LANGUAGES C CXX)
 
 # The version the program reports (--version, the start page) lives in
 # version.h; a release must not ship with the two disagreeing.

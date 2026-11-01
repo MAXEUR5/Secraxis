@@ -264,7 +264,13 @@ std::string conflict_copy_path(const std::string& path) {
 }
 
 bool is_ctrl(const KeyEvent& k, char32_t c) {
-    return k.code == KeyEvent::Code::Char && (k.mods & KEYMOD_CTRL) && k.cp == c;
+    return k.code == KeyEvent::Code::Char && (k.mods & KEYMOD_CTRL) && command_letter(k.cp) == c;
+}
+
+// The command letter of a plain (typed, not pasted, no Ctrl) key, else 0.
+char32_t plain_letter(const KeyEvent& k) {
+    if (k.code != KeyEvent::Code::Char || (k.mods & (KEYMOD_CTRL | KEYMOD_PASTE))) return 0;
+    return command_letter(k.cp);
 }
 
 struct PasteTarget {
@@ -278,9 +284,10 @@ bool edit_text(LineEdit& e, const KeyEvent& k) {
     switch (k.code) {
         case C::Char:
             if (k.mods & KEYMOD_CTRL) {
-                if (k.cp == U'u') e.clear();
-                else if (k.cp == U'a') e.home();
-                else if (k.cp == U'e') e.end();
+                const char32_t c = command_letter(k.cp);
+                if (c == U'u') e.clear();
+                else if (c == U'a') e.home();
+                else if (c == U'e') e.end();
                 else return false;
                 return true;
             }
@@ -301,7 +308,7 @@ bool edit_secret(SecretLineEdit& e, const KeyEvent& k) {
     using C = KeyEvent::Code;
     if (k.code == C::Char) {
         if (k.mods & KEYMOD_CTRL) {
-            if (k.cp != U'u') return false;
+            if (command_letter(k.cp) != U'u') return false;
             e.clear();
             return true;
         }
@@ -349,8 +356,15 @@ TuiMachine::~TuiMachine() {
 void TuiMachine::enter_state(TuiState s, uint64_t now) {
     if (state_ == TuiState::RevealSecret && s != TuiState::RevealSecret)
         hide_reveal();
+    // A prompt always opens with its password hidden.
+    hide_password();
     state_ = s;
     last_activity_ = now;
+}
+
+void TuiMachine::hide_password() noexcept {
+    pw_reveal_ = false;
+    pw_reveal_deadline_ = 0;
 }
 
 void TuiMachine::say(MessageKind kind, const char* text) {
@@ -540,11 +554,24 @@ void TuiMachine::on_key(const KeyEvent& k, uint64_t now) {
 
 void TuiMachine::key_locked(const KeyEvent& k, uint64_t now) {
     SecretLineEdit& edit = confirm_stage_ ? pw_confirm_ : pw_edit_;
+    // While shown, typing keeps it shown.
+    auto typed = [&] {
+        if (pw_reveal_) pw_reveal_deadline_ = now + cfg_.reveal_ttl_ms;
+    };
     switch (k.code) {
         case KeyEvent::Code::Char:
             if (k.mods & KEYMOD_CTRL) {
-                if (k.cp == U'u') edit.clear();
-                if (k.cp == U'v') paste_clipboard(now);
+                const char32_t c = command_letter(k.cp);
+                if (c == U'u') {
+                    edit.clear();
+                    typed();
+                }
+                if (c == U'v') paste_clipboard(now);
+                if (c == U'r' && !(k.mods & KEYMOD_PASTE)) {
+                    // Show / hide the password being typed.
+                    pw_reveal_ = !pw_reveal_;
+                    pw_reveal_deadline_ = pw_reveal_ ? now + cfg_.reveal_ttl_ms : 0;
+                }
                 return;
             }
             if (k.cp > 0x7E && is_text_cp(k.cp)) {
@@ -554,11 +581,14 @@ void TuiMachine::key_locked(const KeyEvent& k, uint64_t now) {
             }
             if (!edit.append(k.cp) && edit.length() >= SecretLineEdit::MAX_LEN)
                 say(MessageKind::Warning, "Master password is too long.");
+            typed();
             break;
         case KeyEvent::Code::Backspace:
             edit.backspace();
+            typed();
             break;
         case KeyEvent::Code::Esc:
+            hide_password();
             if (confirm_stage_) {
                 // Back to the first prompt rather than quitting.
                 pw_confirm_.clear();
@@ -569,6 +599,9 @@ void TuiMachine::key_locked(const KeyEvent& k, uint64_t now) {
             quit_ = true;
             break;
         case KeyEvent::Code::Enter: {
+            // Whatever comes next (the confirm step, unlocking, a retry)
+            // starts hidden.
+            hide_password();
             if (create_mode_ && !confirm_stage_) {
                 if (pw_edit_.length() == 0) {
                     say(MessageKind::Warning, "Master password must not be empty.");
@@ -703,8 +736,8 @@ bool TuiMachine::key_navigate(const KeyEvent& k) {
     if (k.mods & (KEYMOD_PASTE | KEYMOD_CTRL)) return false;
     const size_t n = view_.size();
     using C = KeyEvent::Code;
-    const bool up = k.code == C::Up || (k.code == C::Char && k.cp == U'k');
-    const bool down = k.code == C::Down || (k.code == C::Char && k.cp == U'j');
+    const bool up = k.code == C::Up || plain_letter(k) == U'k';
+    const bool down = k.code == C::Down || plain_letter(k) == U'j';
     if (up) {
         if (sel_ > 0) --sel_;
     } else if (down) {
@@ -752,8 +785,7 @@ void TuiMachine::key_overview(const KeyEvent& k, uint64_t now) {
         say(MessageKind::Info, "Paste into a field: / to search, a to add an entry.");
         return;
     }
-    if (k.code != KeyEvent::Code::Char || (k.mods & KEYMOD_CTRL)) return;
-    switch (k.cp) {
+    switch (plain_letter(k)) {
         case U'/':
             query_edit_.set(ByteView(active_query_.data(), active_query_.size()));
             searched_.clear();
@@ -1046,9 +1078,7 @@ Status TuiMachine::commit_form(uint64_t now) {
 
 void TuiMachine::key_delete_confirm(const KeyEvent& k, uint64_t now) {
     if (k.mods & KEYMOD_PASTE) return;  // a paste can neither confirm nor cancel
-    const bool yes = (k.code == KeyEvent::Code::Enter) ||
-                     (k.code == KeyEvent::Code::Char && !(k.mods & KEYMOD_CTRL) &&
-                      (k.cp == U'y' || k.cp == U'Y'));
+    const bool yes = k.code == KeyEvent::Code::Enter || plain_letter(k) == U'y';
     enter_state(TuiState::Overview, now);
     if (yes && sel_ < view_.size()) {
         // The ONLY call site allowed to pass confirmed=true (lifecycle §3).
@@ -1254,18 +1284,17 @@ void TuiMachine::close_saving(uint64_t now) {
 // nothing changed. A paste chooses nothing, and neither does another q.
 void TuiMachine::key_close_confirm(const KeyEvent& k, uint64_t now) {
     if (k.mods & KEYMOD_PASTE) return;
-    const bool plain = k.code == KeyEvent::Code::Char && !(k.mods & KEYMOD_CTRL);
-    if (k.code == KeyEvent::Code::Enter || (plain && (k.cp == U's' || k.cp == U'S'))) {
+    const char32_t c = plain_letter(k);
+    if (k.code == KeyEvent::Code::Enter || c == U's') {
         close_saving(now);
         return;
     }
-    if (plain && (k.cp == U'd' || k.cp == U'D')) {
+    if (c == U'd') {
         lock_session(now);
         say(MessageKind::Info, "Locked. The unsaved changes were discarded.");
         return;
     }
-    if (k.code == KeyEvent::Code::Esc || (plain && (k.cp == U'c' || k.cp == U'C')))
-        enter_state(TuiState::Overview, now);
+    if (k.code == KeyEvent::Code::Esc || c == U'c') enter_state(TuiState::Overview, now);
 }
 
 // How changes are saved. Up/Down choose an item, Left/Right/Space change it
@@ -1276,7 +1305,8 @@ void TuiMachine::key_settings(const KeyEvent& k, uint64_t now) {
     if (k.mods & KEYMOD_PASTE) return;
     using C = KeyEvent::Code;
     const bool plain = k.code == C::Char && !(k.mods & KEYMOD_CTRL);
-    if (k.code == C::Esc || k.code == C::Enter || (plain && k.cp == U'o')) {
+    const char32_t c = plain_letter(k);
+    if (k.code == C::Esc || k.code == C::Enter || c == U'o') {
         enter_state(TuiState::Overview, now);
         // "Automatically" leaves nothing unsaved, including what was
         // changed before it was chosen.
@@ -1288,11 +1318,11 @@ void TuiMachine::key_settings(const KeyEvent& k, uint64_t now) {
         }
         return;
     }
-    if (k.code == C::Up || k.code == C::BackTab || (plain && k.cp == U'k')) {
+    if (k.code == C::Up || k.code == C::BackTab || c == U'k') {
         settings_cursor_ = (settings_cursor_ + kItems - 1) % kItems;
         return;
     }
-    if (k.code == C::Down || k.code == C::Tab || (plain && k.cp == U'j')) {
+    if (k.code == C::Down || k.code == C::Tab || c == U'j') {
         settings_cursor_ = (settings_cursor_ + 1) % kItems;
         return;
     }
@@ -1325,10 +1355,10 @@ bool TuiMachine::on_hangup(uint64_t now) {
 // still unsaved. A paste chooses nothing.
 void TuiMachine::key_save_conflict(const KeyEvent& k, uint64_t now) {
     if (k.mods & KEYMOD_PASTE) return;
-    const bool plain = k.code == KeyEvent::Code::Char && !(k.mods & KEYMOD_CTRL);
+    const char32_t c = plain_letter(k);
     // After "save and lock", a successful choice also locks.
     const bool closing = close_after_save_;
-    if (k.code == KeyEvent::Code::Enter || (plain && (k.cp == U'c' || k.cp == U'C'))) {
+    if (k.code == KeyEvent::Code::Enter || c == U'c') {
         close_after_save_ = false;
         enter_state(TuiState::Overview, now);
         const Status cs = save_copy();
@@ -1344,7 +1374,7 @@ void TuiMachine::key_save_conflict(const KeyEvent& k, uint64_t now) {
         }
         return;
     }
-    if (plain && (k.cp == U'o' || k.cp == U'O')) {
+    if (c == U'o') {
         close_after_save_ = false;
         enter_state(TuiState::Overview, now);
         const Status os = session_.save_overwrite(record_time());
@@ -1360,7 +1390,7 @@ void TuiMachine::key_save_conflict(const KeyEvent& k, uint64_t now) {
         }
         return;
     }
-    if (k.code == KeyEvent::Code::Esc || (plain && (k.cp == U'n' || k.cp == U'N'))) {
+    if (k.code == KeyEvent::Code::Esc || c == U'n') {
         close_after_save_ = false;
         conflict_path_.clear();
         enter_state(TuiState::Overview, now);
@@ -1381,6 +1411,7 @@ void TuiMachine::on_tick(uint64_t now) {
         form_reveal_ = false;
         form_reveal_deadline_ = 0;
     }
+    if (pw_reveal_ && now >= pw_reveal_deadline_) hide_password();
     // Clipboard TTL. While another program has the clipboard open it cannot
     // be cleared: tried again each second, and the user told once.
     if (clip_armed_ && now >= clip_deadline_) {
@@ -1500,7 +1531,12 @@ const RenderModel& TuiMachine::render_model() {
         }
     }
 
-    m.pw_chars = confirm_stage_ ? pw_confirm_.chars() : pw_edit_.chars();
+    const SecretLineEdit& typing = confirm_stage_ ? pw_confirm_ : pw_edit_;
+    m.pw_chars = typing.chars();
+    m.pw_revealed = state_ == TuiState::Locked && pw_reveal_;
+    m.pw_reveal = m.pw_revealed ? typing.view() : ByteView();
+    m.pw_reveal_remaining_ms =
+        (m.pw_revealed && pw_reveal_deadline_ > now_) ? pw_reveal_deadline_ - now_ : 0;
     m.confirm_stage = confirm_stage_;
     m.caps_lock = caps_lock_;
     m.query_text = (state_ == TuiState::Query) ? query_edit_.text() : std::string();

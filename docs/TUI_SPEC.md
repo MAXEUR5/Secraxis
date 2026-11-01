@@ -2,7 +2,7 @@
 
 This is the technical specification of the terminal interface; how to use
 the program is described in `MANUAL.md` at the repository root. Version
-0.9.1 is built and tested on Windows 11 and Linux. The macOS code paths
+0.9.2 is built and tested on Windows 11 and Linux. The macOS code paths
 mentioned below (the config folder, `pbcopy`/`pbpaste`) exist but are
 neither built nor tested.
 
@@ -96,7 +96,10 @@ layout shows), with a thumb when it overflows. Modal dialogs (add/edit, delete,
 help, reveal, details sheet) sit on a faded copy of the screen, inside a clear
 margin; a word the card cuts is wiped whole, so no stray letter touches its
 border. The lock screen is a centered wordmark, the vault name, and a framed
-password field with step dots when creating a vault.
+password field with step dots when creating a vault. The field ends in a
+`show`/`hide` pill (the entry form's); while the password is shown, the
+label line says when it hides again, right-aligned with the field, where it
+fits.
 
 ### Start page
 
@@ -107,7 +110,7 @@ password field with step dots when creating a vault.
               ███████╗███████╗ ██████╗██████╗  █████╗ ██╗  ██╗██╗███████╗
               ██╔════╝██╔════╝██╔════╝██╔══██╗██╔══██╗╚██╗██╔╝██║██╔════╝
               ...                                        (logo widget, 66×10)
-                  =[ secraxis v0.9.1 - local password vault                 ]
+                  =[ secraxis v0.9.2 - local password vault                 ]
            + -- --=[ AES-256-GCM-SIV - XChaCha20-Poly1305 - Argon2id        ]
            + -- --=[ 4 recent vaults - no cloud - no telemetry              ]
 
@@ -262,6 +265,12 @@ vault is locked (`q`), and `Settings` holds how changes are saved (below).
 
 ## Keys
 
+Command letters act in either case: `command_letter()` folds `A`–`Z` to
+`a`–`z` wherever a key is a command (the list, the dialogs, Settings, the
+start page, `Ctrl` combinations), so Caps Lock or Shift never silences one.
+Text and password fields keep the case typed. (Until 0.9.2 an uppercase
+letter did nothing outside the three confirmation dialogs.)
+
 | Where | Keys |
 |---|---|
 | List | `↑↓`/`j k` move, `PgUp PgDn` page (by the visible rows), `Home End`, `Enter` details, `/` search, `a` add, `m` edit, `d` delete, `s` show, `p` copy password, `u` copy username, `w`/`Ctrl+S` save, `r` re-seal, `q` lock (asks first if there are unsaved changes), `o` settings, `?` help, `Esc` back out one level (sheet, then filter) |
@@ -269,7 +278,7 @@ vault is locked (`q`), and `Settings` holds how changes are saved (below).
 | Settings | `↑↓`/`j k`/`Tab` choose, `←→`/`Space` change (a click on an item changes it), `Esc`/`Enter`/`o` done |
 | Search | type to filter, `↑↓` pick, `Enter` keep, `Esc` restore the previous list, `Ctrl+U` clear |
 | Forms | `Tab`/`Shift+Tab`, `↑↓`, `←→ Home End Del` editing (`Ctrl+A`/`Ctrl+E` start/end, in every text field), `Ctrl+U` clear field, `Ctrl+V` paste, `Ctrl+R` show/hide the password being typed, `Enter` next/save on the last field, `Ctrl+S` save, `Esc` cancel |
-| Password prompt | `Enter`, `Esc` (back one step when confirming, else back to the start page, or quit when the vault came from the command line), `Ctrl+U`, `Ctrl+V` paste; while unlocking, `Esc` stops waiting (back to the prompt) |
+| Password prompt | `Enter`, `Esc` (back one step when confirming, else back to the start page, or quit when the vault came from the command line), `Ctrl+R` show/hide the password being typed, `Ctrl+U`, `Ctrl+V` paste; while unlocking, `Esc` stops waiting (back to the prompt) |
 | Paste | `Ctrl+V` in any text field (the search, the forms, the password prompt, the start page's path and name fields); the terminal's own paste (`Ctrl+Shift+V`, right-click, `Shift+Insert`; `Ctrl+V` in Windows Terminal and the classic console) works everywhere a field is focused |
 | Changed on disk | `c` or `Enter` save a copy next to the vault (the window goes on in it), `o` overwrite what the other side saved, `Esc`/`n` back, still unsaved |
 | Start page | `↑↓`/`j k`, `PgUp PgDn Home End` move, `Enter` open, `n` new vault, `o` open (browser), `x`/`Del` forget, `?` help, `q`/`Esc` quit |
@@ -404,9 +413,19 @@ With mouse reporting on, most terminals select text with `Shift` held.
   and on leaving the form. Only what was typed is shown: an edit never loads
   the stored password into the form. There is no password generator (the
   project stores secrets the user chose and does not claim to improve them).
-- **No secret in the render model** outside `reveal_text` and, while the
-  form's passwords are shown, `FormField::reveal`: both are views into the
-  machine's SecureBuffers, valid until the next machine call, never copies.
+- **Show the master password while typing** (0.9.2): on the password
+  prompt, `Ctrl+R` (or a click on the `show` pill) shows the master password
+  being typed, in the unlock prompt and both create prompts. Every prompt
+  opens hidden; it hides after the reveal TTL without typing (renewed by each
+  keystroke), on `Enter`, on `Esc`, at the confirm step and on any state
+  change, so nothing is shown while the key is derived. A paste cannot turn
+  it on. It reaches the renderer only as `RenderModel::pw_reveal`.
+- **No secret in the render model** outside `reveal_text` and, while shown,
+  `FormField::reveal` (the form's passwords) and `pw_reveal` (the master
+  password being typed): views into the machine's SecureBuffers, valid until
+  the next machine call, never copies. The canvas cells, the screen mirror
+  and the output buffer that carry a shown secret to the terminal are wiped
+  when reused or released.
   Masks show the length bucket, never the length; hidden form secrets expose
   only character counts.
 - **Timestamps** use the injected wall clock (`set_wall_clock`), never uptime.

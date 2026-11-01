@@ -35,7 +35,7 @@ its nails few and names them in its
 yet been audited by an independent security organization; therefore, like
 everything else, it should be scrutinized and questioned.
 
-**Version 0.9.1** · Windows 11 (x64) and Linux (x86-64)
+**Version 0.9.2** · Windows 11 (x64) and Linux (x86-64)
 
 ## Features
 
@@ -92,7 +92,7 @@ entry, `w` saves, `q` locks, and `?` lists the keys.
 
 - [MANUAL.md](MANUAL.md): the user manual (installing, everyday use,
   command-line tools, troubleshooting)
-- [RELEASE_NOTES.md](RELEASE_NOTES.md): what is in 0.9.1, checksums, known
+- [RELEASE_NOTES.md](RELEASE_NOTES.md): what is in 0.9.2, checksums, known
   limits
 - [CHANGELOG.md](CHANGELOG.md): every change
 - [docs/SECURITY.md](docs/SECURITY.md): security model, status, and how to
@@ -102,7 +102,7 @@ entry, `w` saves, `q` locks, and `?` lists the keys.
 
 ## Status
 
-Secraxis 0.9.1 is tested on Windows 11 and Linux: unit tests, sanitizers,
+Secraxis 0.9.2 is tested on Windows 11 and Linux: unit tests, sanitizers,
 fuzzing, static analysis, and scripted sessions in real terminals
 ([docs/TESTING_AND_FUZZING.md](docs/TESTING_AND_FUZZING.md)). It has **not**
 been audited by an authority reviewer yet. The tests, fuzz targets and

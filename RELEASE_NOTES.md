@@ -1,11 +1,13 @@
-# Secraxis 0.9.1 Release Notes
+# Secraxis 0.9.2 Release Notes
 
 Released 2026-11-01.
 
 Secraxis is a password manager for the terminal that keeps your passwords in
-one encrypted file on your own computer. This is the first release since the
-0.1.0 engineering build. See [MANUAL.md](MANUAL.md) for how to use it and
-[CHANGELOG.md](CHANGELOG.md) for every change.
+one encrypted file on your own computer. 0.9.2 adds a way to see the master
+password you are typing and fixes letter keys that did nothing in capitals.
+See [MANUAL.md](MANUAL.md) for how to use it and
+[CHANGELOG.md](CHANGELOG.md) for every change; the 0.9.1 release notes give
+the overview of the 0.9 series.
 
 ## Platforms
 
@@ -21,91 +23,42 @@ Paste detection (pasted text never acts as a command) works in Windows
 Terminal on Windows 11, in the classic console from Windows 11 24H2, and in
 current Linux terminals.
 
-## Highlights
+## New: see the master password you are typing
 
-- **A new terminal interface.** A start page with recent vaults, a folder
-  browser and a new-vault form; mouse support; a details pane beside the
-  list in wide windows; full Unicode, including Chinese, Japanese and Korean
-  text and emoji. The look adapts to what each terminal can draw. It works
-  the same in Windows Terminal, the classic Windows console, Linux terminals,
-  tmux and over SSH.
-- **Your work is not lost.** Save manually or automatically. Locking with
-  unsaved changes asks first. When nobody is there (the idle lock, the
-  terminal closing, signing out of Windows), unsaved work is saved or
-  discarded as you choose. If another window or a sync tool saved the vault
-  meanwhile, Secraxis asks before it writes, and can save a copy.
-- **Saves that cannot break the vault.** Each save is checked by decrypting
-  it, then swapped in atomically. Two windows cannot save over each other.
-  Random kills during saves (4,200 in this release's testing) never lost an
-  acknowledged save or damaged a vault.
-- **Two independent random sources.** Every key, salt and nonce mixes the
-  operating system's random generator with the processor's RDSEED
-  (HKDF-SHA-512), so a weak or cloned system generator (a copied virtual
-  machine) no longer decides them alone. RDSEED is health-checked, and
-  without it Secraxis refuses to work rather than fall back.
-- **A careful clipboard.** A copied password is cleared after 20 seconds,
-  unless you copied something else since (over SSH the clear cannot check,
-  so it is unconditional). On Windows, copies stay out of the clipboard
-  history and the cloud clipboard. Over SSH, copies go to your own
-  terminal's clipboard (OSC 52). `Ctrl+V` pastes into any field wherever
-  Secraxis can read the clipboard.
-- **The Secraxis logo**, also as the Windows program icon, drawn to stay
-  clear on light and dark backgrounds.
-- **Hardening.**
-  - Text from imported files can no longer send control sequences to your
-    terminal.
-  - The Windows program imports only Windows' own libraries, and its secure
-    memory is now really locked (see below).
-  - Plaintext exports go only to a new file that only you can read.
-  - A window never writes back keys that were changed elsewhere.
+When unlocking a vault and in both steps of creating one, `Ctrl+R` or a
+click on **show** at the end of the password field shows what you have
+typed, so you can check it before pressing `Enter`; **hide** or `Ctrl+R`
+hides it again.
 
-## Fixed in the release review
+It follows the same rules as a shown entry password:
 
-The last review before release found and fixed these, each with a test that
-fails without the fix:
+- The password is hidden whenever a prompt opens.
+- It hides again by itself after 10 seconds without typing, and when you
+  press `Enter` or `Esc` or move on to confirm a new password, so it is
+  never on screen while the key is derived.
+- A paste cannot turn it on.
+- It reaches the terminal only through buffers that are wiped after use; a
+  scan of the running program found no copy of it once the key was derived.
 
-- Editing an entry's password dropped its TOTP secret (from an import).
-- Saving or changing the password through a symbolic link replaced the link,
-  leaving the real vault unchanged while reporting success.
-- After the master password was changed in another program, a window still
-  open could save the old keys back; an overwrite chosen in the save-conflict
-  dialog could still do so if the change finished at the same moment.
-- On Windows, almost none of the secure memory was actually locked: by
-  default Windows lets a program lock only 200 KB, and Secraxis did not ask
-  for more, so secrets could be paged out to disk. The limit is now raised
-  at startup.
-- Running out of secure memory could store an entry without its password, or
-  create a vault with an empty master password. A save that runs out now
-  says so ("Not saved: not enough secure memory").
-- On Windows, signing out or shutting down lost unsaved work.
-- `export-plaintext` could write through an existing file, and on Windows
-  took the folder's permissions. `backup` could replace an existing file.
-- A CSV or JSON file starting with a byte-order mark (Excel and many
-  exporters write one) lost its first column, usually the entry names. A
-  CSV row with more than 64 fields was misread, and an unclosed quote
-  swallowed the rest of the file. Both now fail the import.
-- A click made just before a dialog opened could answer that dialog.
-- On Linux, a clipboard owner that never answered could freeze the screen.
-- On Windows, a busy clipboard made the timed clear give up while reporting
-  success.
-- The clipboard recognized its own copy of a password by a fingerprint that
-  anyone who found it could test password guesses against (a hash under a
-  fixed key, kept in ordinary memory). Its key is now random and kept in
-  secure memory.
-- A failed re-seal or edit of an entry in memory (for example, out of secure
-  memory) could drop the entry's secrets from the open session. The old
-  sealed copy is now kept until the new one exists.
+Anyone who can see your screen can read the password while it is shown.
 
-## Upgrading from 0.1.0
+## Fixed: capital letters
 
-The vault file format is unchanged (format version 1). Make a backup before
-you first save a vault with 0.9.1:
-`secraxis backup my.seis my-backup.seis`.
+With Caps Lock on or Shift held, the vault's keys (`A` to add, `S` to show,
+`Q` to lock, `J`/`K` to move, …), Settings and the start page did nothing;
+only the three confirmation dialogs accepted both cases. Every command
+letter now works in either case. Text you type into a field keeps its case,
+and pasted text still never acts as a command.
 
-The vault screen now accepts master passwords in printable ASCII only, so
-that every password can be typed in any terminal. If your master password
-contains other characters, change it before you upgrade, with 0.1.0's
-`secraxis passwd`.
+## Upgrading
+
+From 0.9.1: replace the program. The vault file format is unchanged (format
+version 1) and nothing needs converting.
+
+From 0.1.0: make a backup before you first save a vault with 0.9.2
+(`secraxis backup my.seis my-backup.seis`). The vault screen accepts master
+passwords in printable ASCII only; if yours contains other characters,
+change it first with 0.1.0's `secraxis passwd`.
 
 ## Known limitations
 
@@ -133,29 +86,32 @@ contains other characters, change it before you upgrade, with 0.1.0's
 
 ## Quality
 
-- All 21 tests (13 suites and 8 fuzz-corpus replays) pass on Windows and
-  Linux, and on Linux also under AddressSanitizer+UBSan, ThreadSanitizer and
-  MemorySanitizer.
-- Scripted sessions in real terminals: Windows 222 of 222 checks, including
-  the classic console's own paste (the release `.exe` itself 60 of 60);
-  Linux 214 of 214. The program's sanitizer builds ran the Linux sessions
-  too: 192 of 192 and 173 of 173.
-- About 19.9 billion fuzzing executions under the sanitizers, plus 223
-  million on the final parsers: no crash.
-- Static analysis on the final code: CodeQL and the Clang Static Analyzer
-  on the Linux and Windows code, GCC's analyzer on the A2ONT C code, and
-  clang-tidy and cppcheck on the Linux build: no defect.
-- Every fix in the release review has a test that fails without it (40 of
-  40 checked).
+What was run for 0.9.2, on the final code:
 
-Details: [docs/TESTING_AND_FUZZING.md](docs/TESTING_AND_FUZZING.md).
+- All 21 tests (13 suites and 8 fuzz-corpus replays) pass on Windows and
+  Linux. The three suites 0.9.2 changes (the state machine, the renderer and
+  the start page) also pass under AddressSanitizer+UBSan, ThreadSanitizer
+  and MemorySanitizer.
+- Each new test was checked by putting the fault it guards against back
+  into the code: 7 of 7 caught.
+- Scripted sessions in real terminals: on Windows the memory, vault and
+  start-page sessions (39, 28 and 21 checks) and the release `.exe` itself
+  (60 of 60); on Linux the memory and vault sessions (25 and 27 checks).
+  The memory sessions show the master password while creating the vault and
+  then check that it is gone from the program's memory.
+- The `tui` fuzz target, which drives the interface with random keys, ran
+  10 minutes under AddressSanitizer+UBSan: no crash.
+
+The cryptography, file format and saving are unchanged from 0.9.1, whose
+testing still stands: details in
+[docs/TESTING_AND_FUZZING.md](docs/TESTING_AND_FUZZING.md).
 
 ## Checksums
 
 | File | Platform | Size | SHA-256 |
 |---|---|---|---|
-| `secraxis.exe` | Windows 11 x64 | 7,732,367 bytes | `b283efc6f942a154b75903266a9c3b783c010934e3d5e51685740024f6e7ecbe` |
-| `secraxis` | Linux x86-64 | 7,170,104 bytes | `4cd8d0b4c18c9739fbb7d31f7af4511992c5d56f95383e450a4cf149308a470a` |
+| `secraxis.exe` | Windows 11 x64 | 7,736,907 bytes | `97d030f815cfd461774a4bccb6a227a602d636f75815f3fe3e3d1cf336f29819` |
+| `secraxis` | Linux x86-64 | 7,174,712 bytes | `6d0da5fb0c2a18b9bef749ca53daf18ab98f254c3b01778e333e31f8567cc7e1` |
 
 Check a download before its first run:
 

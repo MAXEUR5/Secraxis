@@ -27,6 +27,12 @@
 //  * the master password is printable ASCII only: Unicode passphrases can
 //    encode differently across input methods and platforms (NFC vs NFD),
 //    which would lock the user out of the vault
+//  * "show" on the master-password prompt (Ctrl+R) is off whenever a prompt
+//    opens; it hides after reveal_ttl_ms without typing, on Enter or Esc, at
+//    the confirm step and whenever the machine leaves the prompt, and a
+//    paste can never turn it on
+//  * command letters act in either case (Caps Lock, Shift): see
+//    command_letter(); text and password fields keep what is typed
 #ifndef SECRAXIS_TUI_CORE_H
 #define SECRAXIS_TUI_CORE_H
 
@@ -96,6 +102,12 @@ struct KeyEvent {
         return k;
     }
 };
+
+// The letter a command key stands for: 'A'-'Z' act as 'a'-'z', so Caps Lock
+// or Shift never silences a command. Text fields take KeyEvent::cp as typed.
+constexpr char32_t command_letter(char32_t cp) noexcept {
+    return (cp >= U'A' && cp <= U'Z') ? cp + (U'a' - U'A') : cp;
+}
 
 // ---------------------------------------------------------------------------
 // Clipboard abstraction (real impl in tui/clipboard.cpp; fake in tests)
@@ -247,8 +259,9 @@ enum class MessageKind : uint8_t { None, Info, Success, Warning, Error };
 // Render model: everything the renderer needs, nothing more. Metadata strings
 // are raw UTF-8 from the vault (the renderer sanitizes every byte it draws).
 // Secrets appear only as views into machine-owned SecureBuffers, valid until
-// the next machine call: reveal_text (RevealSecret) and FormField::reveal
-// (the add/edit form's password fields while "show" is on).
+// the next machine call: reveal_text (RevealSecret), FormField::reveal (the
+// add/edit form's password fields while "show" is on) and pw_reveal (the
+// master password being typed while "show" is on).
 // ---------------------------------------------------------------------------
 struct RenderRow {
     size_t ordinal = 0;  // 1-based position in the current view
@@ -299,6 +312,12 @@ struct RenderModel {
 
     // Prompts.
     size_t pw_chars = 0;      // Locked: typed master-password characters
+    // Locked, while "show" is on: the master password being typed (a view
+    // into the machine's editor, valid until the next machine call). Empty
+    // otherwise.
+    ByteView pw_reveal;
+    bool pw_revealed = false;
+    uint64_t pw_reveal_remaining_ms = 0;
     bool confirm_stage = false;
     bool caps_lock = false;
     std::string query_text;
@@ -421,6 +440,7 @@ class TuiMachine final {
 
     void enter_state(TuiState s, uint64_t now);
     void hide_reveal();                 // wipe + leave RevealSecret
+    void hide_password() noexcept;      // the prompt's "show" off
     void reset_form();                  // wipe editors
     Status commit_form(uint64_t now);
     void do_copy(bool username, uint64_t now);
@@ -475,6 +495,11 @@ class TuiMachine final {
     SecretLineEdit pw_edit_{true};
     SecretLineEdit pw_confirm_{true};
     bool confirm_stage_ = false;
+    // "Show" for the master password being typed: on until toggled off, the
+    // prompt changes (Enter, Esc, the confirm step, any state change), or
+    // reveal_ttl_ms passes without typing.
+    bool pw_reveal_ = false;
+    uint64_t pw_reveal_deadline_ = 0;
     bool unlock_requested_ = false;
     bool unlock_canceled_ = false;
     SecureBuffer pending_password_;

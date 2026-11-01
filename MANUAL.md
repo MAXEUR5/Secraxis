@@ -1,6 +1,6 @@
 # Secraxis User Manual
 
-Version 0.9.1 · Windows 11 and Linux
+Version 0.9.2 · Windows 11 and Linux
 
 This manual covers installing Secraxis, the vault screen, the command-line
 tools, and what to do when something goes wrong. For a short overview, see
@@ -202,7 +202,17 @@ you add `--kdf floor` or `--kdf strong`.
 
 **Unlocking.** Type the master password and press `Enter`. Each character
 shows as a dot. `Ctrl+V` pastes and `Ctrl+U` clears. While the key is being
-derived, `Esc` stops waiting. A wrong password and a damaged or altered file
+derived, `Esc` stops waiting.
+
+**Showing the master password.** `Ctrl+R`, or a click on **show** at the
+end of the field, shows the characters you have typed, so you can check
+them; `Ctrl+R` or **hide** hides them again. This works when unlocking and
+in both steps of creating a vault. The password is hidden whenever a prompt
+opens, and hides again by itself after 10 seconds without typing, when you
+press `Enter` or `Esc`, and when you move on to confirm a new password.
+Anyone who can see your screen can read it while it is shown.
+
+**A wrong password** and a damaged or altered file
 give the same message, "Wrong password or corrupted vault.": by design,
 Secraxis does not tell an attacker which one it is.
 
@@ -469,7 +479,7 @@ merged, so importing the same file twice adds every entry twice.
 - A file can be up to 16 MiB, with at most 64 columns per CSV row and
   100,000 entries. Any malformed row, or a field longer than the vault
   allows, fails the whole import, and nothing is added.
-- The vault screen does not show TOTP secrets in 0.9.1. They are stored,
+- The vault screen does not show TOTP secrets in 0.9.2. They are stored,
   kept when the entry is edited, and included in a plaintext export.
 
 The import file holds your passwords in plain text. Delete it securely
@@ -566,7 +576,7 @@ keeps no logs or caches.
 - `recent.json` shows where your vaults are and when you opened them. Use
   `--no-history` if that matters.
 
-Secraxis 0.9.1 has been tested extensively, but it has **not been audited by
+Secraxis 0.9.2 has been tested extensively, but it has **not been audited by
 an authority reviewer** ([docs/SECURITY.md](docs/SECURITY.md)).
 
 ### How the vault is protected (technical)
@@ -643,6 +653,9 @@ vault file or any other secret. For a vulnerability, follow
 
 ## Keyboard reference
 
+Letter keys work in either case: with Caps Lock on or Shift held, `A` does
+what `a` does. Text you type into a field keeps its case.
+
 **Start page**
 
 | Key | Action |
@@ -664,7 +677,8 @@ field `←` `→` or `Space` change it; `Ctrl+O` chooses a folder (in the folder
 field also `Ctrl+B`); `Ctrl+S` creates; `Esc` cancels. In every text field,
 `Ctrl+A` and `Ctrl+E` jump to the start and end.
 
-**Password prompt:** `Enter` unlocks; `Ctrl+V` pastes; `Ctrl+U` clears.
+**Password prompt:** `Enter` unlocks; `Ctrl+R` shows or hides the password
+you are typing; `Ctrl+V` pastes; `Ctrl+U` clears.
 `Esc` goes back one step while you confirm a new password; otherwise it
 returns to the start page, or quits when the vault was named on the command
 line. While unlocking, `Esc` stops waiting.

@@ -141,26 +141,33 @@ int secret_lines(const Ctx& x, ByteView secret, int w) {
     return w > 0 ? clampi((sw + w - 1) / w, 1, 3) : 1;
 }
 
-// A one-line field showing a secret being typed: the tail stays visible
-// (that is where the caret is), drawn from the editor's own buffer.
-void secret_strip(Ctx& x, Rect r, ByteView secret, bool focus) {
-    const Style st = on(x.t.secret, focus ? x.t.input_focus : x.t.input);
-    x.c.fill(r, focus ? x.t.input_focus : x.t.input);
-    const int inner = r.w - 2;
-    if (inner < 1) return;
+// A secret being typed, in `w` cells at (x0, y): the tail stays visible
+// (that is where the caret is, one cell after it), drawn from the editor's
+// own buffer. Returns the width drawn.
+int secret_tail(Ctx& x, int x0, int y, int w, ByteView secret, Style st) {
     const std::string_view s = secret_view(secret);
     int total = static_cast<int>(display_width(s, x.c.width_policy()));
     size_t start = 0;
-    if (total > inner - 1) {
+    if (total > w - 1) {
         size_t i = 0;
         Cluster cl;
-        int drop = total - (inner - 1);
+        int drop = total - (w - 1);
         while (drop > 0 && next_cluster(s.data(), s.size(), &i, x.c.width_policy(), &cl))
             drop -= cl.width;
         start = i;
         total = static_cast<int>(display_width(s.substr(start), x.c.width_policy()));
     }
-    x.c.text(r.x + 1, r.y, s.substr(start), st, inner, false);
+    x.c.text(x0, y, s.substr(start), st, w, false);
+    return total;
+}
+
+// A one-line field showing a secret being typed.
+void secret_strip(Ctx& x, Rect r, ByteView secret, bool focus) {
+    const Style st = on(x.t.secret, focus ? x.t.input_focus : x.t.input);
+    x.c.fill(r, focus ? x.t.input_focus : x.t.input);
+    const int inner = r.w - 2;
+    if (inner < 1) return;
+    const int total = secret_tail(x, r.x + 1, r.y, inner, secret, st);
     if (focus) x.c.set_cursor(r.x + 1 + total, r.y);
 }
 
@@ -217,13 +224,18 @@ std::vector<Hint> hints_for(const RenderModel& m, const Glyphs& g, bool wide) {
     const char* esc_label = m.from_launcher ? "back" : "quit";
     switch (m.state) {
         case TuiState::Locked:
+        {
+            const char* show = m.pw_revealed ? "hide password" : "show password";
             if (m.create_mode && m.confirm_stage)
                 return {{"enter", "create vault", 0, keyev(C::Enter)},
                         {"esc", "back", 0, keyev(C::Esc)},
-                        {"ctrl+u", "clear", 1, ctrl(U'u')}};
+                        {"ctrl+r", show, 1, ctrl(U'r')},
+                        {"ctrl+u", "clear", 2, ctrl(U'u')}};
             return {{"enter", m.create_mode ? "continue" : "unlock", 0, keyev(C::Enter)},
                     {"esc", esc_label, 0, keyev(C::Esc)},
-                    {"ctrl+u", "clear", 1, ctrl(U'u')}};
+                    {"ctrl+r", show, 1, ctrl(U'r')},
+                    {"ctrl+u", "clear", 2, ctrl(U'u')}};
+        }
         case TuiState::Unlocking:
             return {{"esc", "cancel", 0, keyev(C::Esc)}};
         case TuiState::Query:
@@ -968,24 +980,52 @@ void lock_screen(Ctx& x, const RenderModel& m) {
         label += " ";
         label += utf8(m.confirm_stage ? x.g.dot_on : x.g.dot_off);
     }
-    x.c.text(bx + 1, y, label, x.t.muted, bw);
+    const int label_w = x.c.text(bx + 1, y, label, x.t.muted, bw);
+    if (m.pw_revealed && m.pw_reveal_remaining_ms > 0) {
+        // When it hides again, right-aligned with the field, if it fits.
+        const std::string t = "shown, hides in " + seconds_text(m.pw_reveal_remaining_ms);
+        const int tw = width_of(x.c, t);
+        if (1 + label_w + 2 + tw <= bw - 1) x.c.text(bx + bw - 1 - tw, y, t, x.t.subtle, tw);
+    }
     ++y;
+    // Show / hide (Ctrl+R or a click), at the field's end as on the entry form.
+    const char* pill = m.pw_revealed ? "hide" : "show";
+    const int pill_w = width_of(x.c, pill) + 2;
+    auto show_pill = [&](int at_x, int at_y) {
+        x.c.fill(Rect{at_x, at_y, pill_w, 1}, m.pw_revealed ? x.t.primary_pill : x.t.pill);
+        x.c.text(at_x + 1, at_y, pill, m.pw_revealed ? x.t.primary_key : x.t.pill_key,
+                 pill_w - 2);
+        zone(x, Rect{at_x, at_y, pill_w, 1}, ctrl(U'r'));
+    };
     if (boxed) {
         x.c.box(Rect{bx, y, bw, 3}, x.t.accent);
         x.c.glyph(bx + 2, y + 1, x.g.prompt, x.t.accent_bold);
-        const int inner = bw - 7;
-        const int n = static_cast<int>(m.pw_chars);
-        const int shown = n < inner ? n : inner;
-        x.c.hline(bx + 4, y + 1, shown, x.g.bullet, x.t.text);
-        x.c.set_cursor(bx + 4 + shown, y + 1);
+        const int pill_x = bx + bw - 2 - pill_w;
+        show_pill(pill_x, y + 1);
+        const int inner = pill_x - 1 - (bx + 4);  // a blank before the pill
+        int drawn = 0;
+        if (m.pw_revealed) {
+            drawn = secret_tail(x, bx + 4, y + 1, inner, m.pw_reveal, on(x.t.secret, x.t.text));
+        } else {
+            const int n = static_cast<int>(m.pw_chars);
+            drawn = n < inner ? n : inner;
+            x.c.hline(bx + 4, y + 1, drawn, x.g.bullet, x.t.text);
+        }
+        x.c.set_cursor(bx + 4 + drawn, y + 1);
         y += 4;
     } else {
         const Style st = x.t.input_focus;
-        x.c.fill(Rect{bx, y, bw, 1}, st);
-        const int n = static_cast<int>(m.pw_chars);
-        const int shown = n < bw - 3 ? n : bw - 3;
-        x.c.hline(bx + 1, y, shown, x.g.bullet, st);
-        x.c.set_cursor(bx + 1 + shown, y);
+        const int fw = bw - pill_w - 1;
+        show_pill(bx + bw - pill_w, y);
+        if (m.pw_revealed) {
+            secret_strip(x, Rect{bx, y, fw, 1}, m.pw_reveal, true);
+        } else {
+            x.c.fill(Rect{bx, y, fw, 1}, st);
+            const int n = static_cast<int>(m.pw_chars);
+            const int shown = n < fw - 3 ? n : fw - 3;
+            x.c.hline(bx + 1, y, shown, x.g.bullet, st);
+            x.c.set_cursor(bx + 1 + shown, y);
+        }
         y += 2;
     }
 
