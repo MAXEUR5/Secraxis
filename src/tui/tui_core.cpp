@@ -226,11 +226,12 @@ const char* CLIP_BUSY_MSG =
 constexpr uint64_t CLIP_RETRY_MS = 1000;
 
 constexpr size_t FORM_TEXT_FIELDS = 5;  // Name, Remark, Username, URL, Tags
-constexpr size_t FORM_FIELD_COUNT = 7;  // + Password + Confirm
+constexpr size_t FORM_FIELD_COUNT = 8;  // + Color + Password + Confirm
 const char* FORM_LABELS[FORM_FIELD_COUNT] = {
-    "Name", "Remark", "Username", "URL", "Tags", "Password", "Confirm",
+    "Name", "Remark", "Username", "URL", "Tags", "Color", "Password", "Confirm",
 };
-constexpr size_t FIELD_PASSWORD = 5;  // the confirmation follows it
+constexpr size_t FIELD_COLOR = 5;
+constexpr size_t FIELD_PASSWORD = 6;  // the confirmation follows it
 
 // Display copies of metadata are bounded (the renderer clips anyway).
 constexpr size_t META_DISPLAY_CAP = 512;
@@ -367,6 +368,20 @@ void TuiMachine::hide_password() noexcept {
     pw_reveal_deadline_ = 0;
 }
 
+void TuiMachine::note_format_upgrade() {
+    if (!session_.is_open() || opened_version_ >= CANON_CURRENT ||
+        session_.content_version() < CANON_CURRENT)
+        return;
+    opened_version_ = CANON_CURRENT;
+    say(MessageKind::Info, FORMAT_UPGRADED_TEXT);
+    msg_deadline_ = 0;  // until the next key: it matters
+}
+
+void TuiMachine::step_color(bool next) noexcept {
+    constexpr uint8_t n = ENTRY_COLORS + 1;  // Auto + the palette
+    form_color_ = static_cast<uint8_t>((form_color_ + (next ? 1 : n - 1)) % n);
+}
+
 void TuiMachine::say(MessageKind kind, const char* text) {
     msg_ = text;
     msg_kind_ = kind;
@@ -396,6 +411,7 @@ void TuiMachine::hide_reveal() {
 
 void TuiMachine::reset_form() {
     for (LineEdit& f : form_text_) f.clear();
+    form_color_ = 0;
     form_pw_.clear();
     form_pw2_.clear();
     form_cursor_ = 0;
@@ -550,6 +566,7 @@ void TuiMachine::on_key(const KeyEvent& k, uint64_t now) {
         case TuiState::CloseConfirm: key_close_confirm(k, now); break;
         case TuiState::Settings: key_settings(k, now); break;
     }
+    note_format_upgrade();
 }
 
 void TuiMachine::key_locked(const KeyEvent& k, uint64_t now) {
@@ -679,6 +696,7 @@ void TuiMachine::on_unlock_result(Result<VaultSession>&& r, uint64_t now) {
     now_ = now;
     if (r.ok()) {
         session_ = static_cast<VaultSession&&>(r.value);
+        opened_version_ = session_.content_version();
         phase_ = ProgressPhase::Ready;
         const bool created = create_mode_;
         create_mode_ = false;
@@ -713,6 +731,12 @@ void TuiMachine::on_unlock_result(Result<VaultSession>&& r, uint64_t now) {
     // password was tried, so this too says nothing about the password.
     if (r.err == Err::RngFailed) {
         say(MessageKind::Error, entropy_state_text(entropy_state()));
+        return;
+    }
+    // Opened, but a newer Secraxis wrote it: reachable only once the
+    // password has opened the vault, so this too says nothing about it.
+    if (r.err == Err::NewerFormat) {
+        say(MessageKind::Error, NEWER_FORMAT_TEXT);
         return;
     }
     // One generic sentence for auth-shaped failures; distinct only for IO.
@@ -811,6 +835,7 @@ void TuiMachine::key_overview(const KeyEvent& k, uint64_t now) {
             form_text_[2].set(ByteView(m.value.username));
             form_text_[3].set(ByteView(m.value.url));
             form_text_[4].set(ByteView(m.value.tags));
+            form_color_ = m.value.color;
             editing_existing_ = true;
             edit_index_ = view_[sel_];
             enter_state(TuiState::EditEntry, now);
@@ -936,9 +961,20 @@ void TuiMachine::key_form(const KeyEvent& k, uint64_t now) {
         case C::Pick:
             if (k.arg >= 0 && static_cast<size_t>(k.arg) < FORM_FIELD_COUNT)
                 form_cursor_ = static_cast<size_t>(k.arg);
+            if (k.arg == PICK_COLOR_PREV || k.arg == PICK_COLOR_NEXT) {
+                form_cursor_ = FIELD_COLOR;
+                step_color(k.arg == PICK_COLOR_NEXT);
+            }
             return;
         default:
             if (is_ctrl(k, U's')) break;  // commit from any field
+            if (form_cursor_ == FIELD_COLOR) {
+                // Left / Right (or Space) step through Auto and the palette;
+                // typed or pasted text has nothing to go into here.
+                if (k.code == C::Left) step_color(false);
+                if (k.code == C::Right || plain_letter(k) == U' ') step_color(true);
+                if (!is_ctrl(k, U'r')) return;
+            }
             if (is_ctrl(k, U'r')) {
                 // Show / hide the passwords being typed.
                 form_reveal_ = !form_reveal_;
@@ -951,7 +987,7 @@ void TuiMachine::key_form(const KeyEvent& k, uint64_t now) {
             }
             if (form_cursor_ < FORM_TEXT_FIELDS) {
                 edit_text(form_text_[form_cursor_], k);
-            } else {
+            } else if (form_cursor_ >= FIELD_PASSWORD) {
                 edit_secret(form_cursor_ == FIELD_PASSWORD ? form_pw_ : form_pw2_, k);
                 // While shown, typing keeps it shown.
                 if (form_reveal_) form_reveal_deadline_ = now + cfg_.reveal_ttl_ms;
@@ -1017,6 +1053,7 @@ Status TuiMachine::commit_form(uint64_t now) {
     put(form_text_[2], e.username);
     put(form_text_[3], e.url);
     put(form_text_[4], e.tags);
+    e.color = form_color_;
 
     if (editing_existing_) {
         // The form edits only the password (empty = keep it). The entry's
@@ -1524,6 +1561,7 @@ const RenderModel& TuiMachine::render_model() {
             row.url = meta_text(meta.value.url);
             row.tags = meta_text(meta.value.tags);
             row.pw_bucket = meta.value.pw_bucket;
+            row.color = meta.value.color;
             row.created_at = meta.value.created_at;
             row.updated_at = meta.value.updated_at;
             row.selected = (vi == sel_);
@@ -1577,6 +1615,8 @@ const RenderModel& TuiMachine::render_model() {
                 f.value = form_text_[i].text();
                 f.caret = form_text_[i].caret();
                 f.required = (i == 0);
+            } else if (i == FIELD_COLOR) {
+                f.color = form_color_;
             } else {
                 const SecretLineEdit& s = (i == FIELD_PASSWORD) ? form_pw_ : form_pw2_;
                 f.secret = true;

@@ -731,7 +731,7 @@ void Terminal::probe(const TerminalOptions& opt) {
         if (t != 0 && opt.theme == 0) theme = t;
         const TermTraits tr = term_traits(id);
         // The full set on every UTF-8 terminal (each glyph is still measured
-        // below), but for the Linux text console and PuTTY; emoji icons only
+        // below), but for the Linux text console and PuTTY; the emoji flag only
         // where the terminal is known to draw them.
         const char* term = std::getenv("TERM");
         const bool vt_console = term != nullptr && std::strcmp(term, "linux") == 0;

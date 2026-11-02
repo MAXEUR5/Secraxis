@@ -73,7 +73,7 @@ struct Glyphs {
     const char* ellipsis;
     const char32_t* spinner;         // animation frames, nullptr: use a bar
     int spinner_len;
-    bool emoji;    // color emoji (two cells) for entry icons
+    bool emoji;    // color emoji take two cells (measured; nothing draws emoji since 0.9.3)
     bool blocks;   // block and double-line glyphs for the start-page logo
     bool unicode() const noexcept { return tier != GlyphTier::Ascii; }
 };

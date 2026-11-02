@@ -117,12 +117,15 @@ void countdown(Ctx& x, int px, int y, int w, uint64_t remaining, uint64_t total,
 void input_strip(Ctx& x, Rect r, std::string_view value, size_t caret, bool focus,
                  const char* empty_hint);
 
-// The entry's badge: 4 cells, content centered. A color icon for the kind of
-// entry where the terminal draws emoji (Rich glyphs, probe-verified), else
-// initials ("GW", or one CJK character) on a tinted tile.
-void badge(Ctx& x, int px, int y, const std::string& name, const std::string& url,
-           const std::string& tags);
+// The entry's badge: its initials ("GW", or one CJK character) centered on a
+// tile of BADGE_W cells in the entry's color (EntryRecord::color: 0 picks one
+// from the name). Monochrome terminals draw the initials in bold, unfilled.
+void badge(Ctx& x, int px, int y, const std::string& name, uint8_t color);
 constexpr int BADGE_W = 4;
+// The tile's style for an entry color (0 automatic, from the name).
+Style entry_style(const Ctx& x, const std::string& name, uint8_t color);
+// "Auto", "Red", ... "Grey" for 0..ENTRY_COLORS.
+const char* entry_color_name(uint8_t color);
 
 }  // namespace ui
 }  // namespace secraxis

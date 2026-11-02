@@ -2,7 +2,7 @@
 
 This is the technical specification of the terminal interface; how to use
 the program is described in `MANUAL.md` at the repository root. Version
-0.9.2 is built and tested on Windows 11 and Linux. The macOS code paths
+0.9.3 is built and tested on Windows 11 and Linux. The macOS code paths
 mentioned below (the config folder, `pbcopy`/`pbpaste`) exist but are
 neither built nor tested.
 
@@ -70,16 +70,18 @@ terminal's reported background (OSC 11, POSIX), else `COLORFGBG`, else dark.
   ↑↓ move · / search · a add · s show · p copy · m edit · d delete · w save · q lock · ? help
 ```
 
-**Entry badges.** A four-cell tile before each name, in the list and the
-details pane. Where the terminal draws emoji (Rich tier, and only if the probe
-measured a two-cell advance), it is a kind icon guessed from the URL scheme,
-tags and name, in English and Chinese: 💻 server/SSH, 📧 mail, 🏦 bank,
-💳 payment, 📶 Wi-Fi, 💾 database, 🔧 code hosting, 💬 chat, 🛒 shopping,
-🎮 games, ⛅ cloud, 🌐 other websites, 🔑 everything else. Elsewhere it is a
-tinted tile with two initials (`GitHub Work` → `GW`, `GitHub` → `GH`,
-`Bank` → `BA`) or one CJK character, its color fixed by the name. The guess
-reads only metadata the overview already holds; no icon is fetched or
-stored.
+**Entry badges.** A four-cell colored tile before each name, in the list,
+the details pane and the entry form's Color field, in every glyph tier: two
+initials (`GitHub Work` → `GW`, `GitHub` → `GH`, `Bank` → `BA`) or one CJK
+character, in the terminal's own font. The color is the entry's Color (0.9.3;
+stored in the vault, SEIS-CANON-v2): Auto, or one of eight (Red, Amber,
+Green, Teal, Blue, Violet, Pink, Grey), each with a dark and a light theme
+shade. Auto picks one of the eight from the name, the same every time.
+Without colors (`--no-color`, `NO_COLOR`) and in lists under 44 columns there
+is no tile. No emoji are drawn anywhere: emoji fonts place their glyphs
+about two pixels off the cell grid, so no icon lined up with the text (until
+0.9.2 the badges were kind icons guessed from the URL, tags and name where
+the terminal drew emoji).
 
 The agenda's five regions (§14.3) map to: title line, toast/status line,
 content, the search bar as the input line, and the key-hint footer. The
@@ -110,15 +112,15 @@ fits.
               ███████╗███████╗ ██████╗██████╗  █████╗ ██╗  ██╗██╗███████╗
               ██╔════╝██╔════╝██╔════╝██╔══██╗██╔══██╗╚██╗██╔╝██║██╔════╝
               ...                                        (logo widget, 66×10)
-                  =[ secraxis v0.9.2 - local password vault                 ]
+                  =[ secraxis v0.9.3 - local password vault                 ]
            + -- --=[ AES-256-GCM-SIV - XChaCha20-Poly1305 - Argon2id        ]
            + -- --=[ 4 recent vaults - no cloud - no telemetry              ]
 
            RECENT VAULTS                                                    4
 
-           ┃ 🔐 personal.seis          D:\Vaults                      2h ago
-             🔐 team-shared.seis       C:\Users…lex\Documents\Work    3d ago
-              ✗ archive-2023.seis      D:\Old                        missing
+           ┃ ◆ personal.seis          D:\Vaults                       2h ago
+             ◆ team-shared.seis       C:\Users\alex\Documents\Work    3d ago
+             ✗ archive-2023.seis      D:\Old                         missing
 
                             n  New vault    o  Open a vault
 
@@ -221,16 +223,18 @@ plus a CJK character and two East Asian Ambiguous letters:
 
 Two optional sets ride on the same probe:
 
-- **Emoji** (entry badges, vault and folder icons): Rich tier only, on
-  terminals known to draw them (above), and kept only if the probe measures
-  exactly two cells; otherwise letter tiles and plain glyphs.
+- **Emoji**: Rich tier only, on terminals known to draw them (above), and
+  kept only if the probe measures exactly two cells. Since 0.9.3 nothing
+  draws them (entry badges are letter tiles; the start page marks vaults
+  with `◆`, missing files with `✗` and folders with `→`). The probe still
+  measures the emoji and sets the flag, which nothing reads; an emoji in an
+  entry's name is drawn as text, two cells wide by the width tables.
 - **Block glyphs** (`█ ═ ║ ╔ ╗ ╚ ╝`, the start-page logo): Rich and Basic,
   kept only if every one measures one cell; otherwise the logo is drawn in
   ASCII.
 
 The probe measures widths, not whether the font has the glyph: a terminal
 that advances two cells for an emoji it cannot draw shows a box there.
-`--glyphs basic` turns emoji off.
 
 ### Wide characters and other scripts
 
@@ -277,7 +281,7 @@ letter did nothing outside the three confirmation dialogs.)
 | Unsaved changes (after `q`) | `s` or `Enter` save and lock, `d` discard and lock, `Esc`/`c` cancel (back to the vault); another `q` and pastes do nothing |
 | Settings | `↑↓`/`j k`/`Tab` choose, `←→`/`Space` change (a click on an item changes it), `Esc`/`Enter`/`o` done |
 | Search | type to filter, `↑↓` pick, `Enter` keep, `Esc` restore the previous list, `Ctrl+U` clear |
-| Forms | `Tab`/`Shift+Tab`, `↑↓`, `←→ Home End Del` editing (`Ctrl+A`/`Ctrl+E` start/end, in every text field), `Ctrl+U` clear field, `Ctrl+V` paste, `Ctrl+R` show/hide the password being typed, `Enter` next/save on the last field, `Ctrl+S` save, `Esc` cancel |
+| Forms | `Tab`/`Shift+Tab`, `↑↓`, `←→ Home End Del` editing (`Ctrl+A`/`Ctrl+E` start/end, in every text field), `Ctrl+U` clear field, `Ctrl+V` paste, `Ctrl+R` show/hide the password being typed, `Enter` next/save on the last field, `Ctrl+S` save, `Esc` cancel; on the entry form's Color field `←→`/`Space` step through Auto and the eight colors (wrapping; a click on an arrow does the same; typing and pastes do nothing there) |
 | Password prompt | `Enter`, `Esc` (back one step when confirming, else back to the start page, or quit when the vault came from the command line), `Ctrl+R` show/hide the password being typed, `Ctrl+U`, `Ctrl+V` paste; while unlocking, `Esc` stops waiting (back to the prompt) |
 | Paste | `Ctrl+V` in any text field (the search, the forms, the password prompt, the start page's path and name fields); the terminal's own paste (`Ctrl+Shift+V`, right-click, `Shift+Insert`; `Ctrl+V` in Windows Terminal and the classic console) works everywhere a field is focused |
 | Changed on disk | `c` or `Enter` save a copy next to the vault (the window goes on in it), `o` overwrite what the other side saved, `Esc`/`n` back, still unsaved |
@@ -473,6 +477,11 @@ With mouse reporting on, most terminals select text with `Shift` held.
   (Until 0.9.1 the held click acted on whatever the next frame showed.) A
   double-click adds `Enter` only on a list row, never in a form, where it
   would commit.
+- **The entry form scrolls to its focus.** Name, Remark, Username, URL,
+  Tags, Color, Password, Confirm. A window too short for all eight fields
+  shows those that fit, scrolled so the focused one is among them (keys
+  reach every field, so the focus must always be drawn and clickable;
+  before 0.9.3 a short window left the password fields out of sight).
 - **The form's editors hold what the vault allows** for each field (remark
   and URL 1024 bytes, tags 512): editing an imported entry no longer cuts
   them at 256 bytes, possibly inside a character.

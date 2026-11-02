@@ -243,6 +243,12 @@ std::vector<Hint> hints_for(const RenderModel& m, const Glyphs& g, bool wide) {
                     {"esc", "cancel", 0, keyev(C::Esc)}, {"ctrl+u", "clear", 2, ctrl(U'u')}};
         case TuiState::AddEntry:
         case TuiState::EditEntry:
+            if (m.form_cursor < m.form.size() && m.form[m.form_cursor].color >= 0)
+                return {{"tab", "next field", 0, keyev(C::Tab)},
+                        {g.unicode() ? utf8(g.left) + utf8(g.right) : std::string("left/right"),
+                         "color", 0, keyev(C::Right)},
+                        {"ctrl+s", "save", 0, ctrl(U's')},
+                        {"esc", "cancel", 0, keyev(C::Esc)}};
             return {{"tab", "next field", 0, keyev(C::Tab)},
                     {"shift+tab", "previous", 3, keyev(C::BackTab)},
                     {"ctrl+r", m.form_revealed ? "hide password" : "show password", 1, ctrl(U'r')},
@@ -327,7 +333,7 @@ struct Columns {
 
 Columns plan_columns(const Ctx& x, const RenderModel& m, int w) {
     Columns c;
-    if ((!x.t.mono || x.g.emoji) && w >= 44) c.badge = BADGE_W + 1;
+    if (!x.t.mono && w >= 44) c.badge = BADGE_W + 1;
     if (real_time(m.wall_now_s) && w >= 54) c.time = 9;
     const int rest = w - c.badge - (c.time > 0 ? c.time + 2 : 0);
     if (rest >= 40) {
@@ -403,7 +409,7 @@ size_t entry_list(Ctx& x, const RenderModel& m, Rect r) {
         }
         px = cx;
         if (col.badge > 0) {
-            badge(x, px, y, row.name, row.url, row.tags);
+            badge(x, px, y, row.name, row.color);
             px += col.badge;
         }
         const Style s_name = sel ? x.t.sel_strong : x.t.text;
@@ -476,8 +482,8 @@ void details_pane(Ctx& x, const RenderModel& m, Rect r) {
     const int bottom = r.bottom() - 2;  // keep the timestamp line free
     // Title: the entry's badge, its name, and the site under it.
     int tx = r.x;
-    if ((!x.t.mono || x.g.emoji) && r.w > 20) {
-        badge(x, r.x, y, row->name, row->url, row->tags);
+    if (!x.t.mono && r.w > 20) {
+        badge(x, r.x, y, row->name, row->color);
         tx = r.x + BADGE_W + 1;
     }
     x.c.text(tx, y++, row->name.empty() ? std::string_view("(no name)") : row->name, x.t.strong,
@@ -773,7 +779,7 @@ void help_dialog(Ctx& x, const RenderModel& m) {
         {"Vault", {{"w  ctrl+s", "save"}, {"r", "re-seal memory"},
                    {"q", "lock (asks if unsaved)"}, {"o", "settings"}}},
         {"Forms", {{"tab", "next field"}, {"shift+tab", "previous field"},
-                   {leftright.c_str(), "move the cursor"}, {"ctrl+r", "show password"},
+                   {leftright.c_str(), "cursor; color"}, {"ctrl+r", "show password"},
                    {"ctrl+u", "clear field"}, {"ctrl+s", "save entry"}}},
     };
     constexpr int kSections = 5;
@@ -833,13 +839,36 @@ void form_dialog(Ctx& x, const RenderModel& m) {
     const char* pill = m.form_revealed ? "hide" : "show";
     const int pill_w = width_of(x.c, pill) + 2;
     const int side_w = 9;  // fits the pill and "x differ" alike
+    // A short window shows the fields that fit, scrolled so that the focused
+    // one is always among them.
+    const int fit = (in.h - 1 + step - 1) / step;
+    const int cur = static_cast<int>(m.form_cursor);
+    const int first = (fit > 0 && cur >= fit && cur < n) ? cur - fit + 1 : 0;
     int y = in.y;
-    for (int i = 0; i < n && y < in.bottom() - 1; ++i) {
+    for (int i = first; i < n && y < in.bottom() - 1; ++i) {
         const FormField& f = m.form[static_cast<size_t>(i)];
         const bool focus = static_cast<size_t>(i) == m.form_cursor;
         if (focus) x.c.glyph(in.x - 2, y, x.g.sel_bar, x.t.accent_bold);
         const int used = x.c.text(in.x, y, f.label, focus ? x.t.label_focus : x.t.muted, lw - 2);
         if (f.required) x.c.text(in.x + used, y, "*", x.t.accent, 1);
+        if (f.color >= 0) {
+            // The entry's color: arrows around a preview of its tile (the
+            // name's initials) and the color's name. The arrows stay put while
+            // the name changes; each is a click target for Left / Right.
+            const Style st = focus ? x.t.input_focus : x.t.input;
+            const int cw = fw < 18 ? fw : 18;
+            x.c.fill(Rect{fx, y, cw, 1}, st);
+            const uint8_t c = static_cast<uint8_t>(f.color);
+            x.c.glyph(fx + 1, y, x.g.left, on(focus ? x.t.accent_bold : x.t.muted, st));
+            badge(x, fx + 3, y, m.form.empty() ? std::string() : m.form[0].value, c);
+            x.c.text(fx + 8, y, entry_color_name(c), on(x.t.text, st), 6);
+            x.c.glyph(fx + 15, y, x.g.right, on(focus ? x.t.accent_bold : x.t.muted, st));
+            zone(x, Rect{in.x - 2, y, lw + 2 + cw, 1}, KeyEvent::pick(i));
+            zone(x, Rect{fx, y, 3, 1}, KeyEvent::pick(PICK_COLOR_PREV));
+            zone(x, Rect{fx + 14, y, 3, 1}, KeyEvent::pick(PICK_COLOR_NEXT));
+            y += step;
+            continue;
+        }
         int field_w = fw;
         if (f.secret && fw - side_w - 2 > 10) {
             field_w = fw - side_w - 2;

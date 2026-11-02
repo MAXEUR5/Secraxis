@@ -110,6 +110,7 @@ Status RuntimeStore::seal_segments(Slot& s, const EntryRecord& e) const {
     if (!e.url.empty()) put_field(meta, (uint16_t)FieldId::Url, ByteView(e.url));
     if (!e.tags.empty()) put_field(meta, (uint16_t)FieldId::Tags, ByteView(e.tags));
     put_field(meta, (uint16_t)FieldId::PwLenBucket, ByteView(&e.pw_bucket, 1));
+    if (e.color != 0) put_field(meta, (uint16_t)FieldId::EntryColor, ByteView(&e.color, 1));
 
     // --- secret segment (built inside secure memory) ---
     size_t sec_len = 0;
@@ -257,6 +258,9 @@ Status open_segment(const SeisHeader& header, const SecureBuffer& prk,
             case FieldId::Tags: e.tags.assign(f.data.ptr, f.data.ptr + f.data.len); break;
             case FieldId::PwLenBucket:
                 if (f.data.len == 1) e.pw_bucket = f.data.ptr[0];
+                break;
+            case FieldId::EntryColor:
+                if (f.data.len == 1) e.color = f.data.ptr[0];
                 break;
             case FieldId::Password:
             case FieldId::TotpSeed:

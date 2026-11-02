@@ -1,6 +1,6 @@
 # Secraxis User Manual
 
-Version 0.9.2 · Windows 11 and Linux
+Version 0.9.3 · Windows 11 and Linux
 
 This manual covers installing Secraxis, the vault screen, the command-line
 tools, and what to do when something goes wrong. For a short overview, see
@@ -255,6 +255,12 @@ smaller windows, `Enter` opens them. The details show the name, username, URL, t
 the password's approximate length (never the password) and when the entry
 was created and last changed.
 
+Each entry is marked by a colored tile with its initials: `GW` for
+"GitHub Work", `GH` for "GitHub", `BA` for "Bank", `工` for "工作邮箱". The
+tile has the color chosen for the entry (see below); an entry left on Auto
+gets a color from its name, always the same one. Without colors
+(`--no-color`), and in very narrow windows, the tiles are left out.
+
 Move with `↑` `↓` (or `j` `k`), `PgUp` `PgDn`, `Home` and `End`. With the
 mouse, a click selects, a double-click opens, and the wheel scrolls. Key
 hints and buttons can be clicked too. `--no-mouse` leaves the mouse to the
@@ -263,13 +269,19 @@ terminal, for example to select text.
 ### Adding and editing
 
 `a` adds an entry; `m` edits the selected one. The form has the fields
-Name, Remark, Username, URL, Tags, Password and Confirm. A new entry needs a
-name and a password. When you edit an entry, leaving Password empty keeps
-its current password.
+Name, Remark, Username, URL, Tags, Color, Password and Confirm. A new entry
+needs a name and a password. When you edit an entry, leaving Password empty
+keeps its current password.
+
+**Color** sets the color of the entry's tile: Auto (picked from the name)
+or one of Red, Amber, Green, Teal, Blue, Violet, Pink and Grey. On the
+Color field, `←` `→` (or `Space`) step through them; a click on an arrow
+does the same.
 
 | Key | Action |
 |---|---|
 | `Tab`, `Shift+Tab`, `↑` `↓` | next or previous field |
+| `←` `→`, `Space` | on Color: previous or next color |
 | `Ctrl+A`, `Ctrl+E` | start or end of the field |
 | `Enter` | next field; on the last field, save the entry |
 | `Ctrl+S` | save the entry |
@@ -357,6 +369,24 @@ open, the open window refuses to save anywhere: saving would bring back the
 old password and keys. Lock, unlock with the current password, and make the
 changes again.
 
+### Vaults from earlier versions
+
+Secraxis 0.9.3 opens the vaults 0.9.1 and 0.9.2 made, every entry on the
+Auto color. To hold the entries' colors, 0.9.3 saves in a new format, and
+the first save of an older vault (from the vault screen, or by `secraxis
+import`) converts it. Secraxis says so once: "Saved in the 0.9.3 vault
+format: Secraxis 0.9.2 and older can no longer open this vault." From then
+on 0.9.2 and older refuse the file, with "Wrong password or corrupted
+vault." If you may still need an older version, make a copy first
+([`secraxis backup`](#backup) copies the vault as it is). `passwd`, `rekey`
+and `upgrade` re-encrypt the entries as they are and do not convert them.
+
+A vault that a later version of Secraxis has saved, in a format this one
+does not know, is refused with "This vault was saved by a newer version of
+Secraxis. Update Secraxis to open it." Secraxis says this only after the
+right master password; with a wrong one, the message stays "Wrong password
+or corrupted vault."
+
 ## Copy and paste
 
 ### Copying
@@ -424,7 +454,8 @@ that cannot be read; `3` the program could not initialize its cryptography.
 
 Opens the vault with your password and checks all of it. It prints
 `OK: vault is valid and openable.` or `FAILED: wrong password or corrupted
-vault.`
+vault.` (for a vault a later version saved, `FAILED: This vault was saved
+by a newer version of Secraxis. Update Secraxis to open it.`).
 
 ### passwd
 
@@ -479,7 +510,7 @@ merged, so importing the same file twice adds every entry twice.
 - A file can be up to 16 MiB, with at most 64 columns per CSV row and
   100,000 entries. Any malformed row, or a field longer than the vault
   allows, fails the whole import, and nothing is added.
-- The vault screen does not show TOTP secrets in 0.9.2. They are stored,
+- The vault screen does not show TOTP secrets in 0.9.3. They are stored,
   kept when the entry is edited, and included in a plaintext export.
 
 The import file holds your passwords in plain text. Delete it securely
@@ -576,7 +607,7 @@ keeps no logs or caches.
 - `recent.json` shows where your vaults are and when you opened them. Use
   `--no-history` if that matters.
 
-Secraxis 0.9.2 has been tested extensively, but it has **not been audited by
+Secraxis 0.9.3 has been tested extensively, but it has **not been audited by
 an authority reviewer** ([docs/SECURITY.md](docs/SECURITY.md)).
 
 ### How the vault is protected (technical)
@@ -589,7 +620,7 @@ master password
   -> key-encryption key -> HKDF -> wrap key          key hierarchy
   -> unwrap the vault master key                     random, not derived from the password
   -> HKDF subkeys, one per purpose                   manifest, pages, nonces, runtime root
-  -> canonical encoding of the entries               one exact byte form (SEIS-CANON-v1)
+  -> canonical encoding of the entries               one exact byte form (SEIS-CANON-v2)
   -> padding to a size bucket                        hides the exact size
   -> A2ONT transform (fresh seed per save)           reversible reshaping, NOT encryption
   -> AEAD per page                                   the encryption and integrity boundary
@@ -631,7 +662,8 @@ are in [docs/SEIS_FORMAT.md](docs/SEIS_FORMAT.md),
 |---|---|
 | "This console cannot process terminal sequences." | Use Windows Terminal. In the classic console, turn off *Use legacy console* in its properties. |
 | Symbols look wrong or columns are misaligned | Try `--glyphs basic`, or `--ascii`. On Windows, use a font such as Cascadia Mono or Consolas. |
-| "Wrong password or corrupted vault." | Check the password, including the keyboard layout and Caps Lock. `secraxis validate` checks the file; if it is damaged, restore a backup. A build without OpenSSL or AWS-LC also says this for vaults that use AES-256-GCM-SIV. |
+| "Wrong password or corrupted vault." | Check the password, including the keyboard layout and Caps Lock. `secraxis validate` checks the file; if it is damaged, restore a backup. A build without OpenSSL or AWS-LC also says this for vaults that use AES-256-GCM-SIV, and Secraxis 0.9.2 and older say it for vaults that 0.9.3 has saved ([Vaults from earlier versions](#vaults-from-earlier-versions)). |
+| "This vault was saved by a newer version of Secraxis." | Install the newer version. See [Vaults from earlier versions](#vaults-from-earlier-versions). |
 | Unlocking takes long | That is the security profile's work. Strong takes the longest. `Esc` stops waiting. |
 | "Not enough secure memory", or "Not saved: not enough secure memory" | A very large vault on Linux: see [Limits](#limits). The vault file is unchanged. |
 | A copy reports it cannot copy | Install `wl-clipboard`, `xclip` or `xsel`. Over SSH, use a terminal that accepts OSC 52; in tmux, set `set-clipboard on`. |

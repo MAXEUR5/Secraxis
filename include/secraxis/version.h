@@ -4,7 +4,7 @@
 
 namespace secraxis {
 
-inline constexpr const char* SECRAXIS_VERSION = "0.9.2";
+inline constexpr const char* SECRAXIS_VERSION = "0.9.3";
 
 }  // namespace secraxis
 

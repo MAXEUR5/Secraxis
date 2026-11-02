@@ -45,6 +45,9 @@ class VaultSession final {
 
     bool is_open() const noexcept { return open_; }
     bool dirty() const noexcept { return dirty_; }
+    // The SEIS-CANON revision of the vault file as last read or written:
+    // older than CANON_CURRENT until the first save upgrades it.
+    uint32_t content_version() const noexcept { return content_version_; }
     size_t entry_count() const noexcept { return store_.size(); }
     const SeisHeader& header() const noexcept { return vault_.header; }
     const std::string& path() const noexcept { return path_; }
@@ -92,6 +95,7 @@ class VaultSession final {
   private:
     bool open_ = false;
     bool dirty_ = false;
+    uint32_t content_version_ = CANON_CURRENT;
     std::string path_;
     UnlockedVault vault_;   // header, envelope, vmk, prk (canonical unused)
     RuntimeStore store_;

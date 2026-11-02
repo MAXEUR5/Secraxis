@@ -145,31 +145,21 @@ std::string file_of(const std::string& path, bool win) {
     return s == std::string::npos ? path : path.substr(s + 1);
 }
 
-// The icon column: two cells where the terminal draws emoji, else one.
-// One-cell glyphs sit at its right edge, so the names after it line up.
-int icon_slot(const Ctx& x) { return x.g.emoji ? 2 : 1; }
+// The icon column: one cell, a glyph from the terminal's own font (no emoji:
+// their fonts place them off the cell grid).
+int icon_slot(const Ctx&) { return 1; }
 
-// A vault icon: the lock emoji where the terminal draws emoji, else the
-// brand diamond.
+// A vault icon: the brand diamond, or a cross for a file no longer there.
 void vault_icon(Ctx& x, int px, int y, bool missing, const Style& surface) {
-    const int gx = px + icon_slot(x) - 1;
     if (missing) {
-        x.c.glyph(gx, y, x.g.fail, on(x.t.warn, surface));
+        x.c.glyph(px, y, x.g.fail, on(x.t.warn, surface));
         return;
     }
-    if (x.g.emoji) {
-        x.c.text(px, y, utf8(U'\x1F510'), surface, 2, false);
-        return;
-    }
-    x.c.glyph(gx, y, x.g.brand, on(x.t.accent_bold, surface));
+    x.c.glyph(px, y, x.g.brand, on(x.t.accent_bold, surface));
 }
 
 void folder_icon(Ctx& x, int px, int y, const Style& surface) {
-    if (x.g.emoji) {
-        x.c.text(px, y, utf8(U'\x1F4C1'), surface, 2, false);
-        return;
-    }
-    x.c.glyph(px + icon_slot(x) - 1, y, x.g.right, on(x.t.subtle, surface));
+    x.c.glyph(px, y, x.g.right, on(x.t.subtle, surface));
 }
 
 size_t recent_list(Ctx& x, const LauncherModel& m, Rect r) {

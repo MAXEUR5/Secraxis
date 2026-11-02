@@ -1,9 +1,11 @@
 #include "secraxis/seis_container.h"
 
+#include <atomic>
 #include <cstring>
 
 #include "secraxis/a2ont.h"
 #include "secraxis/aead.h"
+#include "secraxis/canonical_codec.h"
 #include "secraxis/crypto.h"
 #include "secraxis/fs_atomic.h"
 #include "secraxis/kdf.h"
@@ -137,6 +139,13 @@ Result<SecureBuffer> seis_a2ont_decode(const SecureBuffer& body,
 namespace {
 
 constexpr uint32_t MANIFEST_VERSION = 1;
+
+#if defined(SECRAXIS_TEST_WEAK_KDF)
+// TEST BUILDS ONLY (like the weak KDF profile): the manifest version the
+// next saves write (0: the current one), so tests can make the file a newer
+// Secraxis would write. The tests that use it declare it themselves.
+std::atomic<uint32_t> g_manifest_version_for_test{0};
+#endif
 constexpr size_t PAGE_ENTRY_LEN = 4 + AEAD_TAG_LEN;  // u32 ct_len + tag copy
 // How long a save waits for another process's save of the same file (one
 // takes well under a second; the hangup path has 5 s in all).
@@ -227,7 +236,11 @@ Status build_body(Bytes& file, const SeisHeader& h, const AeadProfile& ap,
     pages.reserve(static_cast<size_t>(plan.pages_len));
     Bytes manifest_plain;
     manifest_plain.reserve(plan.manifest_len);
-    append_le32(manifest_plain, MANIFEST_VERSION);
+    uint32_t manifest_version = MANIFEST_VERSION;
+#if defined(SECRAXIS_TEST_WEAK_KDF)
+    if (g_manifest_version_for_test.load() != 0) manifest_version = g_manifest_version_for_test.load();
+#endif
+    append_le32(manifest_plain, manifest_version);
     if (vmk_envelope.size() < AEAD_TAG_LEN) return status_fail(Err::Internal);
     append_bytes(manifest_plain,
                  ByteView(vmk_envelope.data() + vmk_envelope.size() - AEAD_TAG_LEN,
@@ -331,7 +344,11 @@ Status open_body(ByteView file, const SeisHeader& h, const AeadProfile& ap,
     const uint8_t* m = manifest.data();
     size_t mlen = manifest.size();
     if (mlen < MANIFEST_FIXED_LEN) return status_fail(Err::AuthGeneric);
-    if (load_le32(m) != MANIFEST_VERSION) return status_fail(Err::AuthGeneric);
+    // The manifest's tag verified above: a later version was written by a
+    // newer Secraxis, not forged.
+    const uint32_t manifest_version = load_le32(m);
+    if (manifest_version > MANIFEST_VERSION) return status_fail(Err::NewerFormat);
+    if (manifest_version != MANIFEST_VERSION) return status_fail(Err::AuthGeneric);
     if (h.vmk_env_len < AEAD_TAG_LEN ||
         !ct_equal(m + 4,
                   file.ptr + h.vmk_env_off + h.vmk_env_len - AEAD_TAG_LEN,
@@ -404,6 +421,11 @@ Status verify_assembled(ByteView file, const SeisHeader& h,
                         ByteView expected_canonical) {
     SecureBuffer roundtrip;
     Status st = open_body(file, h, ap, prk, &roundtrip);
+#if defined(SECRAXIS_TEST_WEAK_KDF)
+    // A test made this save write a newer manifest on purpose.
+    if (st.err == Err::NewerFormat && g_manifest_version_for_test.load() > MANIFEST_VERSION)
+        return status_ok();
+#endif
     if (!st.ok()) return status_fail(Err::Internal);
     if (roundtrip.size() != expected_canonical.len)
         return status_fail(Err::Internal);
@@ -413,6 +435,12 @@ Status verify_assembled(ByteView file, const SeisHeader& h,
 }
 
 }  // namespace
+
+#if defined(SECRAXIS_TEST_WEAK_KDF)
+void seis_manifest_version_for_test(uint32_t version) noexcept {
+    g_manifest_version_for_test.store(version);
+}
+#endif
 
 // The file at `path` must still be the save `h` describes (seis_save,
 // SaveTarget::Same). A missing file is fine: it is written anew.
@@ -582,8 +610,8 @@ Result<UnlockedVault> seis_unlock_bytes(ByteView file,
     SecureBuffer canonical;
     Status ob = open_body(file, h, *ap, prk, &canonical);
     if (!ob.ok())
-        return R::failure(ob.err == Err::AllocationFailed
-                              ? Err::AllocationFailed
+        return R::failure(ob.err == Err::AllocationFailed || ob.err == Err::NewerFormat
+                              ? ob.err
                               : Err::AuthGeneric);
 
     UnlockedVault v;
@@ -685,8 +713,18 @@ Status seis_validate(const std::string& path, ByteView master_password) {
     if (!prk.valid()) return status_fail(Err::AllocationFailed);
     SecureBuffer canonical;
     Status ob = open_body(ByteView(fr.value), h, *ap, prk, &canonical);
+    if (!ob.ok()) return status_fail(ob.err == Err::NewerFormat ? ob.err : Err::AuthGeneric);
+    // Openable means this version can also read the contents.
+    Result<std::vector<EntryRecord>> entries = canonical_decode(canonical.view());
     canonical.reset();
-    if (!ob.ok()) return status_fail(Err::AuthGeneric);
+    if (entries.ok())
+        for (EntryRecord& e : entries.value)
+            for (Bytes* b : {&e.name, &e.remark, &e.username, &e.url, &e.tags})
+                if (!b->empty()) secure_wipe(b->data(), b->size());
+    if (!entries.ok())
+        return status_fail(entries.err == Err::NewerFormat || entries.err == Err::AllocationFailed
+                               ? entries.err
+                               : Err::AuthGeneric);
     return status_ok();
 }
 

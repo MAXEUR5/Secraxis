@@ -2,6 +2,70 @@
 
 All notable changes to Secraxis Vault Manager. Dates are absolute.
 
+## [0.9.3] — 2026-11-02
+
+**Changed**
+- Entries are marked by colored letter tiles everywhere, in every terminal:
+  the name's initials (`GW` for GitHub Work, `工` for 工作邮箱) on a colored
+  background. The emoji icons are gone, from the vault screen and from the
+  start page (vaults are marked `◆`, missing files `✗`, folders `→`):
+  emoji fonts drew them about two pixels off the character grid, so they
+  never lined up with the text.
+- Each entry can have a color: the entry form has a new **Color** field
+  (between Tags and Password). Auto picks one from the name, the same every
+  time; or choose Red, Amber, Green, Teal, Blue, Violet, Pink or Grey with
+  `←` `→` or `Space`, or by clicking the arrows. The color is stored in the
+  vault.
+
+**Vault format**
+- To hold the colors, the encrypted contents have a new revision
+  (SEIS-CANON-v2; `docs/SEIS_FORMAT.md` §8). 0.9.3 opens vaults from 0.9.1
+  and 0.9.2 as they are (every entry on Auto). The first save of such a
+  vault, from the vault screen or by `secraxis import`, converts it, and
+  Secraxis says so once: "Saved in the 0.9.3 vault format: Secraxis 0.9.2
+  and older can no longer open this vault." 0.9.2 and older then refuse the
+  file with their generic message. `passwd`, `rekey` and `upgrade` keep the
+  contents as they are; `backup` copies the file unchanged.
+- A vault saved by a later version, in a format this one does not know, is
+  reported as such: "This vault was saved by a newer version of Secraxis.
+  Update Secraxis to open it." (the vault screen, `validate`, `backup`,
+  `import` and `export-plaintext`). Only the right master password gets
+  this far; a wrong one, or a damaged file, still gives the one generic
+  message.
+
+**Fixed**
+- In a window too short for the whole entry form (under 14 rows in 0.9.2,
+  under 15 with the Color field), its last fields, the password and its
+  confirmation, could be out of sight while you typed into them. The form
+  now scrolls so the focused field is always shown.
+- The help screen said the arrow keys only move the cursor in forms; it now
+  says they also change the color.
+- An entry the vault cannot hold (a field over its size limit, a color the
+  format does not define) is refused when an edit stores it, as when one is
+  added, instead of failing the next save. No part of the program produced
+  one; the check makes the rule hold for every caller.
+
+**Tests added**
+- Vaults genuinely written by 0.9.2 (`tests/vectors/compat`, both
+  encryption profiles) open whole in 0.9.3, are converted by their first
+  save, and keep every entry, secret and date; a chosen color survives
+  saves, a password change and a rekey; key changes alone keep the old
+  revision; a backup is the unchanged file. A newer manifest or contents
+  revision is reported only with the right password (also by `validate`).
+- The contents codec: both revisions, one valid encoding each, Color
+  refused in v1, Color 0 or above 8 refused. The Color field: keys, clicks,
+  wrapping, a paste or typing changes nothing, an edit loads and keeps the
+  color. The renderer: tiles in every glyph tier with eight distinct
+  colors and Auto stable, no emoji on any screen, the Color field's arrows
+  and hint, and the focused form field drawn and clickable at every window
+  height from 12 rows. Each guarded fault was put back once and its test
+  failed (15 of 15).
+- The scripted real-terminal sessions tab through the Color field, and the
+  vault sessions pick a color. A new Windows session, `win_compat`, runs the
+  released 0.9.2 and 0.9.1 binaries against this one: each makes a vault,
+  0.9.3 opens and converts it, the earlier release then refuses it and
+  leaves it unchanged, and a copy taken before still opens there.
+
 ## [0.9.2] — 2026-11-01
 
 **Added**

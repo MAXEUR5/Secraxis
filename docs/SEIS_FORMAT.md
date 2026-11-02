@@ -37,7 +37,7 @@ A2ONT magic, no canonical-codec magic, and no planted plaintext.
 | 80 | 4 | aead_profile_id | 1=XChaCha20-Poly1305, 2=AES-256-GCM-SIV |
 | 84 | 4 | a2ont_profile_id | 1=default, 2=strong |
 | 88 | 4 | padding_policy_id | 1=bucket-v1 |
-| 92 | 4 | canonical_version | 1 |
+| 92 | 4 | canonical_version | 1 (see §8: the contents carry their own revision) |
 | 96 | 8 | updated_at | unix seconds |
 | 104 | 8 | epoch | strictly increasing across saves; ≥1 |
 | 112 | 32 | save_salt | fresh CSPRNG per save (nonce hygiene) |
@@ -178,3 +178,53 @@ the KDF: opening seals every entry under fresh random keys and nonces), is
 reported as such, and neither says anything about the password. Header failures that come before the KDF (an unknown magic or
 format version, an AEAD profile this build cannot run) are refused as
 unsupported; the screen shows the same generic message for them.
+
+The one other exception is a vault a **newer** Secraxis wrote (§8): once the
+envelope and the manifest have authenticated, a manifest version above 1, or
+contents in a later revision, is reported as `Err::NewerFormat` ("This vault
+was saved by a newer version of Secraxis. Update Secraxis to open it.").
+It cannot be reached without the right password: a wrong password, or any
+tampering, fails an AEAD tag first and stays the generic error.
+
+## 8. Contents (SEIS-CANON)
+
+The bytes A2ONT reshapes and the pages carry are the vault's entries in one
+exact byte form. `src/seis_format/canonical_codec.cpp` defines it:
+
+```
+u32 magic "SXC1" or "SXC2" (the revision) | u32 entry_count
+per entry, in strictly ascending entry_id order, each id once:
+  u8 entry_id[16] | u64 created_at | u64 updated_at | u32 field_bytes
+  fields: { u16 field_id | u32 len | bytes } in strictly ascending id order
+```
+
+| Id | Field | Revision | Notes |
+|---|---|---|---|
+| 1 | Name | v1 | |
+| 2 | Remark | v1 | |
+| 3 | Username | v1 | |
+| 4 | URL | v1 | |
+| 5 | Tags | v1 | |
+| 6 | Password length bucket | v1 | 1 byte, 0..5; in every entry |
+| 7 | Color | v2 | 1 byte, 1..8 (Red, Amber, Green, Teal, Blue, Violet, Pink, Grey); absent = Auto |
+| 32 | Password | v1 | secret |
+| 33 | TOTP secret | v1 | secret |
+| 34 | Recovery codes | v1 | secret |
+| 35 | Secret note | v1 | secret |
+
+Ids below 32 are metadata, 32 and up secrets; within an entry every
+metadata field precedes every secret. Absent fields are omitted (no field is
+ever empty), each field has a fixed maximum length, and there is
+exactly one valid encoding: anything out of order, duplicated, too long,
+unknown or left over is rejected.
+
+**Revisions.** SEIS-CANON-v1 (`SXC1`) is what 0.9.1 and 0.9.2 write.
+SEIS-CANON-v2 (`SXC2`, from 0.9.3) is v1 plus field 7. Each revision
+rejects the fields it does not define, so v1 contents with a Color are not
+valid, and Color 0 or above 8 is not valid either. 0.9.3 reads both and
+**always writes v2**: a vault from 0.9.2 or earlier is upgraded on its first
+save, after which those versions refuse it (with their generic message: they
+know no other). A later revision (`SXC3` to `SXC9`) is `NewerFormat`; any
+other magic is the generic error. The header's `canonical_version` stays 1
+in every revision: it lies in the immutable block that the VMK envelope
+authenticates (§2), which an ordinary save does not rewrite.

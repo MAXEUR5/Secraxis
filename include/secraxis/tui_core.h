@@ -267,6 +267,7 @@ struct RenderRow {
     size_t ordinal = 0;  // 1-based position in the current view
     std::string name, remark, username, url, tags;
     uint8_t pw_bucket = 0;  // coarse length bucket, never the exact length
+    uint8_t color = 0;      // 0 automatic, else 1..ENTRY_COLORS
     uint64_t created_at = 0, updated_at = 0;  // unix seconds
     bool selected = false;
 };
@@ -281,7 +282,13 @@ struct FormField {
     ByteView reveal;
     bool secret = false;
     bool required = false;
+    int color = -1;  // the Color field: 0 Auto, 1..ENTRY_COLORS; -1 any other
 };
+
+// Pick events beyond the form's fields: the Color field's arrows (a click
+// does what Left and Right do on the focused field).
+constexpr int32_t PICK_COLOR_PREV = 100;
+constexpr int32_t PICK_COLOR_NEXT = 101;
 
 struct RenderModel {
     TuiState state = TuiState::Locked;
@@ -441,6 +448,9 @@ class TuiMachine final {
     void enter_state(TuiState s, uint64_t now);
     void hide_reveal();                 // wipe + leave RevealSecret
     void hide_password() noexcept;      // the prompt's "show" off
+    void step_color(bool next) noexcept;  // the form's Color, Auto included
+    // Says once that a save moved an older vault file to the current format.
+    void note_format_upgrade();
     void reset_form();                  // wipe editors
     Status commit_form(uint64_t now);
     void do_copy(bool username, uint64_t now);
@@ -486,6 +496,7 @@ class TuiMachine final {
     bool caps_lock_ = false;
 
     VaultSession session_;
+    uint32_t opened_version_ = 0;       // the file's SEIS-CANON revision when opened
     std::vector<size_t> view_;          // indices shown (query filter/all)
     size_t sel_ = 0;
     size_t top_ = 0;                    // first visible view row
@@ -521,9 +532,10 @@ class TuiMachine final {
     static constexpr size_t LIVE_SEARCH_MAX = 5000;
     static constexpr size_t LIVE_SEARCH_INSTANT = 1000;  // ~18 ms per search
 
-    // Add/Edit form. Field order: Name, Remark, Username, URL, Tags,
+    // Add/Edit form. Field order: Name, Remark, Username, URL, Tags, Color,
     // Password, Confirm.
     std::vector<LineEdit> form_text_;   // non-secret fields
+    uint8_t form_color_ = 0;            // 0 Auto, 1..ENTRY_COLORS
     SecretLineEdit form_pw_;
     SecretLineEdit form_pw2_;
     size_t form_cursor_ = 0;

@@ -5,16 +5,22 @@
 namespace secraxis {
 
 // Layout:
-//   u32 magic 'SXC1' | u32 entry_count
+//   u32 magic 'SXC1' or 'SXC2' | u32 entry_count
 //   per entry (ascending entry_id, unique):
 //     u8[16] entry_id | u64 created_at | u64 updated_at | u32 field_bytes
 //     fields: (u16 field_id | u32 len | bytes)*  — ascending id, unique,
 //             metadata (<32) before secrets (>=32) by the ordering rule
+// v2 adds field 7 (Color); everything else is as in v1.
 namespace {
 
-constexpr uint32_t CANON_MAGIC = 0x31435853;  // "SXC1" little-endian
+constexpr uint32_t CANON_MAGIC_BASE = 0x00435853;  // "SXC" little-endian
 constexpr size_t ENTRY_FIXED = ENTRY_ID_LEN + 8 + 8 + 4;
 constexpr size_t FIELD_HDR = 2 + 4;
+
+// "SXC" followed by the revision's digit.
+uint32_t magic_of(uint32_t version) noexcept {
+    return CANON_MAGIC_BASE | ((static_cast<uint32_t>('0') + version) << 24);
+}
 
 struct FieldRef {
     uint16_t id;
@@ -36,6 +42,8 @@ void collect_fields(const EntryRecord& e, std::vector<FieldRef>& out) {
     // pw_bucket always present (1 byte), even when 0/unknown.
     out.push_back({static_cast<uint16_t>(FieldId::PwLenBucket),
                    ByteView(&e.pw_bucket, 1)});
+    // Color only when one was chosen (automatic = absent).
+    if (e.color != 0) out.push_back({static_cast<uint16_t>(FieldId::EntryColor), ByteView(&e.color, 1)});
     add(FieldId::Password, e.password.view());
     add(FieldId::TotpSeed, e.totp_seed.view());
     add(FieldId::RecoveryCodes, e.recovery_codes.view());
@@ -52,6 +60,7 @@ size_t field_max_len(uint16_t id) noexcept {
         case FieldId::Url: return 1024;
         case FieldId::Tags: return 512;
         case FieldId::PwLenBucket: return 1;
+        case FieldId::EntryColor: return 1;
         case FieldId::Password: return 512;
         case FieldId::TotpSeed: return 128;
         case FieldId::RecoveryCodes: return 4096;
@@ -69,10 +78,15 @@ uint8_t password_length_bucket(size_t len) noexcept {
     return 5;
 }
 
-Result<SecureBuffer> canonical_encode(const std::vector<EntryRecord>& entries) {
+Result<SecureBuffer> canonical_encode(const std::vector<EntryRecord>& entries,
+                                      uint32_t version) {
     using R = Result<SecureBuffer>;
     if (entries.size() > CANONICAL_MAX_ENTRIES)
         return R::failure(Err::InvalidArgument);
+    if (version != CANON_V1 && version != CANON_V2) return R::failure(Err::InvalidArgument);
+    for (const EntryRecord& e : entries)
+        if (e.color > ENTRY_COLORS || (version == CANON_V1 && e.color != 0))
+            return R::failure(Err::InvalidArgument);
 
     // Validate ordering/uniqueness and compute total size.
     std::vector<FieldRef> fields;
@@ -98,7 +112,7 @@ Result<SecureBuffer> canonical_encode(const std::vector<EntryRecord>& entries) {
     SecureBuffer out = SecureBuffer::alloc(total);
     if (!out.valid()) return R::failure(Err::AllocationFailed);
     uint8_t* p = out.data();
-    store_le32(p, CANON_MAGIC);
+    store_le32(p, magic_of(version));
     store_le32(p + 4, static_cast<uint32_t>(entries.size()));
     p += 8;
     for (const EntryRecord& e : entries) {
@@ -121,12 +135,22 @@ Result<SecureBuffer> canonical_encode(const std::vector<EntryRecord>& entries) {
     return R::success(static_cast<SecureBuffer&&>(out));
 }
 
-Result<std::vector<EntryRecord>> canonical_decode(ByteView canonical) {
+Result<std::vector<EntryRecord>> canonical_decode(ByteView canonical, uint32_t* version_out) {
     using R = Result<std::vector<EntryRecord>>;
     const uint8_t* p = canonical.ptr;
     size_t rem = canonical.len;
     if (rem < 8) return R::failure(Err::AuthGeneric);
-    if (load_le32(p) != CANON_MAGIC) return R::failure(Err::AuthGeneric);
+    const uint32_t magic = load_le32(p);
+    uint32_t version = 0;
+    for (uint32_t v : {CANON_V1, CANON_V2})
+        if (magic == magic_of(v)) version = v;
+    if (version == 0) {
+        // A later revision ("SXC3".."SXC9"): authenticated contents that a
+        // newer Secraxis wrote. Anything else is not a vault.
+        const bool newer = (magic & 0x00FFFFFFu) == CANON_MAGIC_BASE &&
+                           p[3] > static_cast<uint8_t>('0' + CANON_CURRENT) && p[3] <= '9';
+        return R::failure(newer ? Err::NewerFormat : Err::AuthGeneric);
+    }
     const uint32_t count = load_le32(p + 4);
     p += 8;
     rem -= 8;
@@ -168,6 +192,9 @@ Result<std::vector<EntryRecord>> canonical_decode(ByteView canonical) {
             if (len > frem) return R::failure(Err::AuthGeneric);
             const size_t maxlen = field_max_len(id);
             if (maxlen == 0) return R::failure(Err::AuthGeneric);  // unknown
+            // Color is unknown to v1, exactly as it is to the v1 readers.
+            if (static_cast<FieldId>(id) == FieldId::EntryColor && version < CANON_V2)
+                return R::failure(Err::AuthGeneric);
             if (len > maxlen) return R::failure(Err::AuthGeneric);
             if (id <= prev_field) return R::failure(Err::AuthGeneric);
             prev_field = id;
@@ -199,6 +226,12 @@ Result<std::vector<EntryRecord>> canonical_decode(ByteView canonical) {
                     e.pw_bucket = v.ptr[0];
                     have_bucket = true;
                     break;
+                case FieldId::EntryColor:
+                    // Automatic is the field's absence: 0 is never stored.
+                    if (len != 1 || v.ptr[0] == 0 || v.ptr[0] > ENTRY_COLORS)
+                        return R::failure(Err::AuthGeneric);
+                    e.color = v.ptr[0];
+                    break;
                 case FieldId::Password:
                 case FieldId::TotpSeed:
                 case FieldId::RecoveryCodes:
@@ -228,6 +261,7 @@ Result<std::vector<EntryRecord>> canonical_decode(ByteView canonical) {
         rem -= fbytes;
     }
     if (rem != 0) return R::failure(Err::AuthGeneric);  // no trailing bytes
+    if (version_out != nullptr) *version_out = version;
     return R::success(static_cast<std::vector<EntryRecord>&&>(entries));
 }
 

@@ -54,6 +54,11 @@ enum class Err : uint32_t {
     // vault or beside it. Nothing was written; only reachable after a
     // successful unlock (no oracle).
     VaultRekeyed = 17,
+    // The vault opened with this password (every AEAD tag verified), but a
+    // newer Secraxis wrote its contents, in a format this version cannot
+    // read. Only reachable after full authentication (no oracle: a wrong
+    // password or a tampered file never gets this far).
+    NewerFormat = 18,
 };
 
 inline const char* err_name(Err e) noexcept {  // stable non-secret identifier
@@ -76,6 +81,7 @@ inline const char* err_name(Err e) noexcept {  // stable non-secret identifier
         case Err::Exists: return "ERR_EXISTS";
         case Err::VaultChanged: return "ERR_VAULT_CHANGED";
         case Err::VaultRekeyed: return "ERR_VAULT_REKEYED";
+        case Err::NewerFormat: return "ERR_NEWER_FORMAT";
     }
     return "ERR_UNKNOWN";
 }

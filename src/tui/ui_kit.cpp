@@ -32,8 +32,9 @@ const Palette kDark = {
     rgb(0xD9DCE6, 7),  rgb(0x4A1F27, 1),  rgb(0xFFD9D9, 15), rgb(0x8B93FF, 12),
     rgb(0x10121C, 0),  rgb(0xB3B8FF, 14), rgb(0xECEDF5, 15), rgb(0x8B93FF, 12),
     rgb(0xC08BFF, 13), rgb(0x3A3E58, 8),
-    {rgb(0x3C3466, 5), rgb(0x24405E, 4), rgb(0x1E4A47, 6), rgb(0x3B4A25, 2),
-     rgb(0x5A3E22, 3), rgb(0x5B2836, 1), rgb(0x2E3A55, 4), rgb(0x4B2F53, 5)},
+    // Entry colors: Red, Amber, Green, Teal, Blue, Violet, Pink, Grey.
+    {rgb(0x7A2E36, 1), rgb(0x7A5418, 3), rgb(0x2E5E37, 2), rgb(0x1C5853, 6),
+     rgb(0x26497A, 4), rgb(0x4B3C82, 5), rgb(0x7A2E63, 5), rgb(0x454A5A, 8)},
 };
 
 const Palette kLight = {
@@ -44,8 +45,9 @@ const Palette kLight = {
     rgb(0x2B2E3B, 0),  rgb(0xFDE2E2, 1),  rgb(0x991B1B, 15), rgb(0x4F46E5, 4),
     rgb(0xFFFFFF, 15), rgb(0x4338CA, 4),  rgb(0x1E2030, 0),  rgb(0x4F46E5, 4),
     rgb(0x9333EA, 5),  rgb(0xC9CCD8, 7),
-    {rgb(0xE4E0FF, 5), rgb(0xDCEAFB, 4), rgb(0xD5F1EC, 6), rgb(0xE5F0D2, 2),
-     rgb(0xFBE6CF, 3), rgb(0xFBDCE2, 1), rgb(0xE1E6F0, 4), rgb(0xF1DFF3, 5)},
+    // Entry colors: Red, Amber, Green, Teal, Blue, Violet, Pink, Grey.
+    {rgb(0xFAD4D6, 1), rgb(0xFBE5BF, 3), rgb(0xD3EED2, 2), rgb(0xC9EDE8, 6),
+     rgb(0xD2E1F9, 4), rgb(0xE2DBFC, 5), rgb(0xF8D5EA, 5), rgb(0xE0E3EA, 7)},
 };
 
 Style fg(Color c, uint8_t attrs = 0) { return Style{c, 0, attrs}; }
@@ -542,55 +544,6 @@ void input_strip(Ctx& x, Rect r, std::string_view v, size_t caret, bool focus,
 // ---------------------------------------------------------------------------
 namespace {
 
-bool contains_any(const std::string& hay, std::initializer_list<const char*> needles) {
-    std::string h = hay;
-    for (char& c : h)
-        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
-    for (const char* n : needles)
-        if (h.find(n) != std::string::npos) return true;
-    return false;
-}
-
-// The kind of entry, as an emoji code point (all Emoji_Presentation, two
-// cells): guessed from the URL scheme, the tags and the name, in English and
-// Chinese. Unknown kinds get a key.
-char32_t kind_icon(const std::string& name, const std::string& url, const std::string& tags) {
-    const std::string all = name + " " + url + " " + tags;
-    if (contains_any(url, {"ssh://", "sftp://", "rdp://", "telnet://", "vnc://"}) ||
-        contains_any(all, {"ssh", "server", "vps", "host", "nas", "router",
-                           "\xE6\x9C\x8D\xE5\x8A\xA1\xE5\x99\xA8"}))  // 服务器
-        return U'\x1F4BB';  // laptop
-    if (contains_any(url, {"mailto:"}) ||
-        contains_any(all, {"mail", "smtp", "imap", "\xE9\x82\xAE"}))  // 邮
-        return U'\x1F4E7';  // e-mail
-    if (contains_any(all, {"bank", "\xE9\x93\xB6\xE8\xA1\x8C"}))  // 银行
-        return U'\x1F3E6';  // bank
-    if (contains_any(all, {"pay", "card", "wallet", "finance", "\xE6\x94\xAF\xE4\xBB\x98",
-                           "\xE9\x92\xB1\xE5\x8C\x85"}))  // 支付, 钱包
-        return U'\x1F4B3';  // credit card
-    if (contains_any(all, {"wifi", "wi-fi", "wlan", "ssid", "\xE6\x97\xA0\xE7\xBA\xBF"}))  // 无线
-        return U'\x1F4F6';  // antenna bars
-    if (contains_any(all, {"mysql", "postgres", "redis", "mongo", "database", "sql",
-                           "\xE6\x95\xB0\xE6\x8D\xAE\xE5\xBA\x93"}))  // 数据库
-        return U'\x1F4BE';  // disk
-    if (contains_any(all, {"github", "gitlab", "bitbucket", "gitea", "jira", "dev"}))
-        return U'\x1F527';  // wrench
-    if (contains_any(all, {"wechat", "slack", "discord", "telegram", "whatsapp", "signal",
-                           "chat", "qq", "\xE5\xBE\xAE\xE4\xBF\xA1"}))  // 微信
-        return U'\x1F4AC';  // speech balloon
-    if (contains_any(all, {"amazon", "taobao", "jd.com", "shop", "store",
-                           "\xE6\xB7\x98\xE5\xAE\x9D", "\xE8\xB4\xAD"}))  // 淘宝, 购
-        return U'\x1F6D2';  // cart
-    if (contains_any(all, {"steam", "game", "xbox", "playstation", "nintendo", "epic",
-                           "\xE6\xB8\xB8\xE6\x88\x8F"}))  // 游戏
-        return U'\x1F3AE';  // controller
-    if (contains_any(all, {"aws", "azure", "gcp", "cloud", "aliyun",
-                           "\xE4\xBA\x91"}))  // 云
-        return U'\x26C5';   // sun behind cloud
-    if (contains_any(url, {"http://", "https://", "www."})) return U'\x1F310';  // globe
-    return U'\x1F511';  // key
-}
-
 // Initials: the first letters of the first two words ("GitHub Work" -> GW),
 // the first letter and next capital of one CamelCase word (GitHub -> GH), the
 // first two letters of another single word (Bank -> BA), or one character
@@ -654,17 +607,23 @@ std::string initials(const Ctx& x, const std::string& name, int* width) {
 
 }  // namespace
 
-void badge(Ctx& x, int px, int y, const std::string& name, const std::string& url,
-           const std::string& tags) {
-    if (x.g.emoji) {
-        // A color icon, centered in the four cells.
-        const std::string icon = utf8(kind_icon(name, url, tags));
-        x.c.text(px + 1, y, icon, x.t.text, 2, false);
-        return;
-    }
+Style entry_style(const Ctx& x, const std::string& name, uint8_t color) {
+    if (x.t.mono) return x.t.strong;
+    if (color >= 1 && color <= ENTRY_COLORS) return x.t.chip[color - 1];
+    // Automatic: a palette color picked by the name, stable across sessions.
     uint32_t h = 2166136261u;
     for (char ch : name) h = (h ^ static_cast<uint8_t>(ch)) * 16777619u;
-    const Style st = x.t.mono ? x.t.strong : x.t.chip[h % 8];
+    return x.t.chip[h % ENTRY_COLORS];
+}
+
+const char* entry_color_name(uint8_t color) {
+    static const char* const kNames[ENTRY_COLORS + 1] = {
+        "Auto", "Red", "Amber", "Green", "Teal", "Blue", "Violet", "Pink", "Grey"};
+    return color <= ENTRY_COLORS ? kNames[color] : "Auto";
+}
+
+void badge(Ctx& x, int px, int y, const std::string& name, uint8_t color) {
+    const Style st = entry_style(x, name, color);
     if (!x.t.mono) x.c.fill(Rect{px, y, BADGE_W, 1}, st);
     int w = 0;
     const std::string ini = initials(x, name, &w);

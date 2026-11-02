@@ -32,6 +32,24 @@ bool rekeyed_on_disk(const std::string& path, const SeisHeader& h) {
            d.kdf_profile_id != h.kdf_profile_id || d.aead_profile_id != h.aead_profile_id;
 }
 
+// Every field within its canonical cap and a color the format defines:
+// checked when the entry comes in, so the failure is immediate, not at the
+// next save (which could not encode it).
+bool fits_vault(const EntryRecord& e) noexcept {
+    auto ok = [](const Bytes& b, FieldId id) {
+        return b.size() <= field_max_len(static_cast<uint16_t>(id));
+    };
+    auto ok_s = [](const SecureBuffer& b, FieldId id) {
+        return b.size() <= field_max_len(static_cast<uint16_t>(id));
+    };
+    return ok(e.name, FieldId::Name) && ok(e.remark, FieldId::Remark) &&
+           ok(e.username, FieldId::Username) && ok(e.url, FieldId::Url) &&
+           ok(e.tags, FieldId::Tags) && ok_s(e.password, FieldId::Password) &&
+           ok_s(e.totp_seed, FieldId::TotpSeed) &&
+           ok_s(e.recovery_codes, FieldId::RecoveryCodes) &&
+           ok_s(e.secret_note, FieldId::SecretNote) && e.color <= ENTRY_COLORS;
+}
+
 }  // namespace
 
 void VaultSession::wipe_record(EntryRecord& e) noexcept {
@@ -41,6 +59,7 @@ void VaultSession::wipe_record(EntryRecord& e) noexcept {
     wipe_bytes(e.url);
     wipe_bytes(e.tags);
     e.pw_bucket = 0;
+    e.color = 0;
     e.password.reset();
     e.totp_seed.reset();
     e.recovery_codes.reset();
@@ -49,7 +68,7 @@ void VaultSession::wipe_record(EntryRecord& e) noexcept {
 }
 
 Status VaultSession::seal_from_canonical(ByteView canonical) {
-    Result<std::vector<EntryRecord>> dec = canonical_decode(canonical);
+    Result<std::vector<EntryRecord>> dec = canonical_decode(canonical, &content_version_);
     if (!dec.ok()) return status_fail(dec.err);
     Result<RuntimeStore> rs = RuntimeStore::create(vault_.prk, vault_.header);
     if (!rs.ok()) return status_fail(rs.err);
@@ -109,17 +128,7 @@ Result<size_t> VaultSession::add_entry(EntryRecord&& e, uint64_t now) {
     using R = Result<size_t>;
     if (!open_) return R::failure(Err::InvalidArgument);
 
-    // Field caps enforced here so the failure is immediate, not at save.
-    if (e.name.size() > field_max_len((uint16_t)FieldId::Name) ||
-        e.remark.size() > field_max_len((uint16_t)FieldId::Remark) ||
-        e.username.size() > field_max_len((uint16_t)FieldId::Username) ||
-        e.url.size() > field_max_len((uint16_t)FieldId::Url) ||
-        e.tags.size() > field_max_len((uint16_t)FieldId::Tags) ||
-        e.password.size() > field_max_len((uint16_t)FieldId::Password) ||
-        e.totp_seed.size() > field_max_len((uint16_t)FieldId::TotpSeed) ||
-        e.recovery_codes.size() >
-            field_max_len((uint16_t)FieldId::RecoveryCodes) ||
-        e.secret_note.size() > field_max_len((uint16_t)FieldId::SecretNote)) {
+    if (!fits_vault(e)) {
         wipe_record(e);
         return R::failure(Err::InvalidArgument);
     }
@@ -161,6 +170,10 @@ Status VaultSession::modify_entry(size_t index, EntryRecord&& e,
     if (!h.ok()) {
         wipe_record(e);
         return status_fail(Err::NotFound);
+    }
+    if (!fits_vault(e)) {
+        wipe_record(e);
+        return status_fail(Err::InvalidArgument);
     }
     // Identity and history are preserved from the existing entry.
     std::memcpy(e.entry_id, h.value.entry_id, ENTRY_ID_LEN);
@@ -262,6 +275,7 @@ Status VaultSession::save_to(const std::string& path, SaveTarget target, uint64_
     canon.value.reset();  // wipe canonical scratch regardless of outcome
     if (!st.ok()) return st;  // on failure: disk untouched, still dirty
     dirty_ = false;
+    content_version_ = CANON_CURRENT;  // an older file is upgraded by its first save
     // Post-save reseal (moving-target trigger "after save").
     return store_.reseal_all();
 }

@@ -56,6 +56,8 @@ const char* failure_text(Err e) {
     if (e == Err::IoWrite) return "Could not write the vault file (disk full or no permission?). It is unchanged.";
     // Refused before the password was tried: no random numbers (RDSEED).
     if (e == Err::RngFailed) return entropy_state_text(entropy_state());
+    // Only once the password opened the vault: no oracle.
+    if (e == Err::NewerFormat) return NEWER_FORMAT_TEXT;
     return "Failed: wrong password or corrupted vault.";
 }
 
@@ -69,6 +71,10 @@ int cli_validate(const std::string& path) {
     if (s.ok()) {
         std::printf("OK: vault is valid and openable.\n");
         return 0;
+    }
+    if (s.err == Err::NewerFormat) {
+        std::printf("FAILED: %s\n", NEWER_FORMAT_TEXT);
+        return 1;
     }
     std::printf("FAILED: wrong password or corrupted vault.\n");
     return 1;
@@ -155,6 +161,7 @@ int cli_import(const std::string& path, const std::string& infile,
     Result<VaultSession> vs = VaultSession::unlock(path, pw.view());
     pw.reset();
     if (!vs.ok()) { std::printf("%s\n", failure_text(vs.err)); return 1; }
+    const bool older = vs.value.content_version() < CANON_CURRENT;
     size_t added = 0;
     for (EntryRecord& e : parsed.value) {
         if (vs.value.add_entry(static_cast<EntryRecord&&>(e), now_s()).ok()) ++added;
@@ -169,6 +176,7 @@ int cli_import(const std::string& path, const std::string& infile,
         return 1;
     }
     std::printf("Imported %zu entries.\n", added);
+    if (older) std::printf("%s\n", FORMAT_UPGRADED_TEXT);
     return 0;
 }
 

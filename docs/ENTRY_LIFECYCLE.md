@@ -31,7 +31,9 @@ every clause below.
 Contract of `VaultSession::add_entry(record, now)`:
 
 1. Validation: field lengths are enforced against the canonical caps
-   (`field_max_len`). `add_entry` itself accepts an empty password (an
+   (`field_max_len`), and the color must be one the format defines (0 for
+   Auto, or 1..`ENTRY_COLORS`, from 0.9.3); anything else is refused with
+   `InvalidArgument`, nothing added. `add_entry` itself accepts an empty password (an
    import can carry one); the TUI refuses one for a new entry ("Password
    must not be empty."). An empty password is visible as password-length
    bucket 0.
@@ -53,6 +55,9 @@ Contract of `VaultSession::modify_entry(index, record, now)`:
 
 1. The target slot must exist; `entry_id` and `created_at` are preserved
    from the existing entry (the caller cannot forge identity or history).
+   The record is validated as in Add (from 0.9.3; before, an over-long
+   field was only refused by the next save): `InvalidArgument`, the entry
+   unchanged, the record still wiped.
 2. `updated_at = now`; `pw_bucket` recomputed as in Add.
 3. The runtime store replaces the sealed segments under `reseal_epoch + 1`
    (fresh keys, fresh buffers); the OLD sealed segments are wiped and freed
@@ -63,8 +68,8 @@ Contract of `VaultSession::modify_entry(index, record, now)`:
    long-lived old-password copies survive an edit (agenda §15.4).
 5. Vault marked `Dirty`.
 6. `modify_entry` replaces the whole record. A caller that edits only some
-   fields must carry the others over: the TUI's form shows the metadata and
-   the password only, so an edit takes the entry's other secrets (TOTP seed,
+   fields must carry the others over: the TUI's form shows the metadata
+   (the color included) and the password only, so an edit takes the entry's other secrets (TOTP seed,
    recovery codes, secret note) from the stored entry, whether or not the
    password changes (`editing_the_password_keeps_the_other_secrets`). A
    secret that cannot be copied into secure memory fails the edit; the entry
